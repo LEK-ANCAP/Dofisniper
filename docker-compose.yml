@@ -5,6 +5,8 @@ services:
       dockerfile: ../docker/Dockerfile.backend
     container_name: dofimall-backend
     env_file: ./backend/.env
+    environment:
+      - DATABASE_URL=sqlite+aiosqlite:////app/data/dofimall_sniper.db
     volumes:
       - ./backend/screenshots:/app/screenshots
       - ./backend/logs:/app/logs
