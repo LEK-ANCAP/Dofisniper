@@ -1,0 +1,208 @@
+﻿{
+    "data":  {
+                 "isRecommend":  0,
+                 "shareImage":  "https://image.dofimall.com/b2bcloud-images/seller/goods/3NDrzhakaR5lVpjAHIM.png?imageMogr2/thumbnail/100x100",
+                 "specProductList":  [
+
+                                     ],
+                 "saleUnit":  "",
+                 "seriesId":  null,
+                 "addressId":  0,
+                 "bottomTemplateContent":  null,
+                 "specs":  [
+
+                           ],
+                 "isRequireInquire":  0,
+                 "deliverInfo":  null,
+                 "storeInf":  {
+                                  "isFollowStore":  false,
+                                  "storeType":  1,
+                                  "serviceScore":  "5.0",
+                                  "deliverScore":  "5.0",
+                                  "storeLogo":  "https://image.dofimall.com/b2bcloud-images/seller/logo/aU8QrHgXY7Om7NjTE3p.png",
+                                  "storeName":  "IUNKE SOLAR",
+                                  "state":  1,
+                                  "followNumber":  96,
+                                  "storeId":  640002,
+                                  "descriptionScore":  "5.0"
+                              },
+                 "state":  20,
+                 "goodsName":  "Panel solar 640W, monocristalino de doble cara, dimensiones 2382*1134*30mm",
+                 "commentNumber":  0,
+                 "categoryPath":  "Electricidad-\u003eGenerador/grupo electrÃ³geno-\u003eSistema de energÃ­a solar fotovoltaica",
+                 "produceState":  1,
+                 "minBuyNum":  1,
+                 "seriesName":  null,
+                 "topTemplateContent":  null,
+                 "goodsSpec":  "KD-M640-132-N",
+                 "categoryId1":  3463,
+                 "newProductFeature":  null,
+                 "categoryId2":  9799,
+                 "goodsVideo":  null,
+                 "warehouseInfo":  {
+                                       "areaInfo":  "La Habana La Habana del Este",
+                                       "address":  "Carretera de Berroa km 3 1/2, parcela 0016/02 \"Empresa Comercializadora y de Servicios de productos universales\"Municipio Habana del Este. La Habana. Cuba",
+                                       "addressId":  117
+                                   },
+                 "categoryId3":  9800,
+                 "specInstruction":  null,
+                 "storeIsRecommend":  1,
+                 "foreignList":  null,
+                 "listTime":  null,
+                 "serviceLabels":  [
+
+                                   ],
+                 "depositProportion":  0.3,
+                 "goodsId":  100003530614,
+                 "isVirtualGoods":  1,
+                 "attributeList":  null,
+                 "shareLink":  "https://h5.dofimall.com/standard/product/detail?productId=200003581048",
+                 "searchKeyword":  null,
+                 "fieldContent":  null,
+                 "saleUnitDes":  "",
+                 "isDemoSupport":  1,
+                 "onlineTime":  "2026-03-24 09:52:06",
+                 "isSupportReserve":  1,
+                 "goodsParameterList":  [
+
+                                        ],
+                 "goodsDescription":  "Panel solar 640W, monocristalino de doble cara, dimensiones 2382*1134*30mm",
+                 "actualSales":  1442,
+                 "effectSpecValueIds":  [
+
+                                        ],
+                 "deliverTime":  90,
+                 "goodsDetails":  "\u0026lt;p\u0026gt;\u0026lt;img src=\"https://image.dofimall.com/b2bcloud-images/ueditor/0/7622b9ae-7df5-4c88-b49f-69609c452128.png\" title=\"7622b9ae-7df5-4c88-b49f-69609c452128\" alt=\"7622b9ae-7df5-4c88-b49f-69609c452128.png\"/\u0026gt;\u0026lt;/p\u0026gt;",
+                 "problemContent":  null,
+                 "stockType":  1,
+                 "isDelete":  0,
+                 "transitTime":  60,
+                 "defaultProductId":  null,
+                 "isNew":  0,
+                 "defaultProduct":  {
+                                        "pricePercent":  null,
+                                        "marketPrice":  null,
+                                        "goodsPics":  [
+                                                          "https://image.dofimall.com/b2bcloud-images/seller/goods/3NDrzhakaR5lVpjAHIM.png"
+                                                      ],
+                                        "originalPrice":  null,
+                                        "promotionId":  null,
+                                        "getSpecValueIds":  "",
+                                        "goodsPicGroups":  [
+                                                               {
+                                                                   "goodsPics":  [
+                                                                                     "https://image.dofimall.com/b2bcloud-images/seller/goods/3NDrzhakaR5lVpjAHIM.png"
+                                                                                 ],
+                                                                   "specValueId":  0
+                                                               }
+                                                           ],
+                                        "batchPrice1":  null,
+                                        "batchPrice2":  null,
+                                        "batchPrice3":  null,
+                                        "actualSales":  0,
+                                        "batchNum1":  36,
+                                        "promotionType":  null,
+                                        "transitStock":  2160,
+                                        "batchNum3":  0,
+                                        "batchNum2":  0,
+                                        "productId":  200003581048,
+                                        "minBuyNum":  1,
+                                        "productStock":  0,
+                                        "getSpecValues":  "",
+                                        "goodsSpec":  "KD-M640-132-N",
+                                        "batchOriginalPrice3":  null,
+                                        "batchOriginalPrice2":  null,
+                                        "batchOriginalPrice1":  null,
+                                        "minPrice":  null,
+                                        "orderCode":  "PT200003581048",
+                                        "productPrice":  null
+                                    },
+                 "technicalLeaderWechat":  null,
+                 "technicalSupportPhone":  null,
+                 "followGoods":  false,
+                 "produceStateValue":  "En stock",
+                 "isOffline":  0,
+                 "qrCodeImage":  null,
+                 "warehouseVOS":  [
+                                      {
+                                          "areaInfo":  "CamagÏey CamagÃ¼ey",
+                                          "isDefault":  0,
+                                          "address":  "Emp. La Universal, Carretera de Nuevitas, kilometro 10  , consejo popular Lenin-Albaisa, CamagÃ¼ey.",
+                                          "name":  "CA1 SUMAI CAMAGÃEY ENTREGA INMEDIATA",
+                                          "warehouseCode":  "GWH0012",
+                                          "addressId":  122,
+                                          "extInfo":  "{\"version\":\"1.0.0\",\"warehouse\":\"CA1\",\"elabora\":{\"nombre\":\"Ms C. Nalyn Denis Casal\",\"cargo\":\"Facturadora\"},\"revisa\":{\"nombre\":\"Ms C.Alejandro RodrÃ­guez FernÃ¡ndez\",\"cargo\":\"Especialista de comercio electrÃ³nico\"},\"entrega\":{\"nombre\":\"Alfonso Ernesto Morgan\",\"cargo\":\"Especialista de comercio electrÃ³nico\"},\"recibe\":{\"nombre\":\"\",\"cargo\":\"\"},\"description\":\"CA1ä»åºæ¯å©çé\u0085ç½®\",\"rules\":[]}"
+                                      },
+                                      {
+                                          "areaInfo":  "La Habana La Habana del Este",
+                                          "isDefault":  0,
+                                          "address":  "Zelcom S.A.,Nave A.AlmacÃ©nNo.12, Nave B, AlmacÃ©n No.3,Carretera Berroa Km 1, Habana deEste, La Habana",
+                                          "name":  "HA3 SUMAI ZELCOM ENTREGA INMEDIATA",
+                                          "warehouseCode":  "GWH0010",
+                                          "addressId":  120,
+                                          "extInfo":  "{\"version\":\"1.0.0\",\"warehouse\":\"HA3\",\"elabora\":{\"nombre\":\"Lic. Ernesto Reyes Perea\",\"cargo\":\"Especialista Comercial\"},\"revisa\":{\"nombre\":\"\",\"cargo\":\"\"},\"entrega\":{\"nombre\":\"Ernesto Alejandro Echarri RamÃ­rez\",\"cargo\":\"Dependiente de AlmacÃ©n\"},\"recibe\":{\"nombre\":\"\",\"cargo\":\"\"},\"description\":\"HA3ä»åºæ¯å©çé\u0085ç½®\",\"rules\":[]}"
+                                      },
+                                      {
+                                          "areaInfo":  "CamagÏey CamagÃ¼ey",
+                                          "isDefault":  0,
+                                          "address":  "Almacenes Universales, Carretera de Nuevitas, kilÃ³metro 10 Â½, consejo popular Lenin-Albaisa, CamagÃ¼ey",
+                                          "name":  "CA2 SUMAI UNIVERSALES CAMAGÃEY ENTREGA INMEDIATA",
+                                          "warehouseCode":  "GWH0009",
+                                          "addressId":  119,
+                                          "extInfo":  "{\"version\":\"1.0.0\",\"warehouse\":\"CA2\",\"elabora\":{\"nombre\":\"Ms C. Nalyn Denis Casal\",\"cargo\":\"Facturadora\"},\"revisa\":{\"nombre\":\"Ms C.Alejandro RodrÃ­guez FernÃ¡ndez\",\"cargo\":\"Especialista de comercio electrÃ³nico\"},\"entrega\":{\"nombre\":\"Alfonso Ernesto Morgan\",\"cargo\":\"Especialista de comercio electrÃ³nico\"},\"recibe\":{\"nombre\":\"\",\"cargo\":\"\"},\"description\":\"CA2ä»åºæ¯å©çé\u0085ç½®\",\"rules\":[]}"
+                                      },
+                                      {
+                                          "areaInfo":  "La Habana La Habana del Este",
+                                          "isDefault":  0,
+                                          "address":  "Almacenes Universales, Carretera de Berroa Km 3 Â½, Habana del Este, La Habana",
+                                          "name":  "HA2 SUMAI MINCIN ENTREGA INMEDIATA",
+                                          "warehouseCode":  "GWH0008",
+                                          "addressId":  118,
+                                          "extInfo":  "{\"version\":\"1.0.0\",\"warehouse\":\"HA2\",\"elabora\":{\"nombre\":\"Lic. Ernesto Reyes Perea\",\"cargo\":\"Especialista Comercial\"},\"revisa\":{\"nombre\":\"\",\"cargo\":\"\"},\"entrega\":{\"nombre\":\"Ernesto Alejandro Echarri RamÃ­rez\",\"cargo\":\"Dependiente de AlmacÃ©n\"},\"recibe\":{\"nombre\":\"\",\"cargo\":\"\"},\"description\":\"HA2ä»åºæ¯å©çé\u0085ç½®\",\"rules\":[]}"
+                                      },
+                                      {
+                                          "areaInfo":  "La Habana La Habana del Este",
+                                          "isDefault":  0,
+                                          "address":  "Carretera de Berroa km 3 1/2, parcela 0016/02 \"Empresa Comercializadora y de Servicios de productos universales\"Municipio Habana del Este. La Habana. Cuba",
+                                          "name":  "HA1 SUMAI LA HABANA ENTREGA INMEDIATA",
+                                          "warehouseCode":  "GWH0007",
+                                          "addressId":  117,
+                                          "extInfo":  "{\"version\":\"1.0.0\",\"warehouse\":\"HA1\",\"elabora\":{\"nombre\":\"Lic. Ernesto Reyes Perea\",\"cargo\":\"Especialista Comercial\"},\"revisa\":{\"nombre\":\"\",\"cargo\":\"\"},\"entrega\":{\"nombre\":\"Ernesto Alejandro Echarri RamÃ­rez\",\"cargo\":\"Dependiente de AlmacÃ©n\"},\"recibe\":{\"nombre\":\"\",\"cargo\":\"\"},\"description\":\"HA1ä»åºæ¯å©çé\u0085ç½®\",\"rules\":[]}"
+                                      },
+                                      {
+                                          "areaInfo":  "La Habana La Habana del Este",
+                                          "isDefault":  0,
+                                          "address":  "Almacenes Universales, Carretera de Berroa Km 3 Â½, Habana del Este, La Habana",
+                                          "name":  "RDA4 MINCIN BERROA HABANA",
+                                          "warehouseCode":  "CBW0004",
+                                          "addressId":  112,
+                                          "extInfo":  "{\"version\":\"1.0.0\",\"warehouse\":\"RD4\",\"elabora\":{\"nombre\":\"Lic. Ernesto Reyes Perea\",\"cargo\":\"Especialista Comercial\"},\"revisa\":{\"nombre\":\"\",\"cargo\":\"\"},\"entrega\":{\"nombre\":\"Ernesto Alejandro Echarri RamÃ­rez\",\"cargo\":\"Dependiente de AlmacÃ©n\"},\"recibe\":{\"nombre\":\"\",\"cargo\":\"\"},\"description\":\"RD4ä»åºæ¯å©çé\u0085ç½®\",\"rules\":[{\"name\":\"æ åé¶æ¢¯æ¯å©ç\",\"priority\":10,\"enabled\":true,\"conditions\":[{\"name\":\"å°é¢è®¢å\",\"condition\":\"#subtotal \u0026amp;amp;amp;lt; 5000\",\"expression\":\"#subtotal * 0.075\",\"description\":\"å°äº5000å\u0085ï¼7.5%æ¯å©ç\"},{\"name\":\"å¤§é¢è®¢å\",\"condition\":\"#subtotal \u0026amp;amp;amp;gt;= 5000\",\"expression\":\"#subtotal * 0.025\",\"description\":\"å¤§äºç­äº5000å\u0085ï¼2.5%æ¯å©ç\"}]}]}"
+                                      },
+                                      {
+                                          "areaInfo":  "CamagÏey CamagÃ¼ey",
+                                          "isDefault":  0,
+                                          "address":  "Almacenes Universales, Carretera de Nuevitas, kilÃ³metro 10 Â½, consejo popular Lenin-Albaisa, CamagÃ¼ey",
+                                          "name":  "RDA3 MINCIN CAMAGÃEY",
+                                          "warehouseCode":  "GWH0003",
+                                          "addressId":  108,
+                                          "extInfo":  "{\"version\":\"1.0.0\",\"warehouse\":\"RD3\",\"elabora\":{\"nombre\":\"Ms C. Nalyn Denis Casal\",\"cargo\":\"Facturadora\"},\"revisa\":{\"nombre\":\"Ms C.Alejandro RodrÃ­guez FernÃ¡ndez\",\"cargo\":\"Especialista de comercio electrÃ³nico\"},\"entrega\":{\"nombre\":\"Alfonso Ernesto Morgan\",\"cargo\":\"Especialista de comercio electrÃ³nico\"},\"recibe\":{\"nombre\":\"\",\"cargo\":\"\"},\"description\":\"RD3ä»åºæ¯å©çé\u0085ç½®\",\"rules\":[{\"name\":\"æ åé¶æ¢¯æ¯å©ç\",\"priority\":10,\"enabled\":true,\"conditions\":[{\"name\":\"å°é¢è®¢å\",\"condition\":\"#subtotal \u0026amp;lt; 5000\",\"expression\":\"#subtotal * 0.075\",\"description\":\"å°äº5000å\u0085ï¼7.5%æ¯å©ç\"},{\"name\":\"å¤§é¢è®¢å\",\"condition\":\"#subtotal \u0026amp;gt;= 5000\",\"expression\":\"#subtotal * 0.025\",\"description\":\"å¤§äºç­äº5000å\u0085ï¼2.5%æ¯å©ç\"}]}]}"
+                                      },
+                                      {
+                                          "areaInfo":  "La Habana La Habana del Este",
+                                          "isDefault":  0,
+                                          "address":  "Zelcom S.A, Nave A, AlmacÃ©n No.12, Nave B, AlmacÃ©n No.3, Carretera Berroa Km 1, Habana de Este, La Habana",
+                                          "name":  "RDA2 ZELCOM BERROA HABANA",
+                                          "warehouseCode":  "GWH0002",
+                                          "addressId":  107,
+                                          "extInfo":  "{\"version\":\"1.0.0\",\"warehouse\":\"RD2\",\"elabora\":{\"nombre\":\"Lic. Ernesto Reyes Perea\",\"cargo\":\"Especialista Comercial\"},\"revisa\":{\"nombre\":\"\",\"cargo\":\"\"},\"entrega\":{\"nombre\":\"Ernesto Alejandro Echarri RamÃ­rez\",\"cargo\":\"Dependiente de AlmacÃ©n\"},\"recibe\":{\"nombre\":\"\",\"cargo\":\"\"},\"description\":\"RD2ä»åºæ¯å©çé\u0085ç½®\",\"rules\":[{\"name\":\"æ åé¶æ¢¯æ¯å©ç\",\"priority\":10,\"enabled\":true,\"conditions\":[{\"name\":\"å°é¢è®¢å\",\"condition\":\"#subtotal \u0026amp;amp;lt; 5000\",\"expression\":\"#subtotal * 0.075\",\"description\":\"å°äº5000å\u0085ï¼7.5%æ¯å©ç\"},{\"name\":\"å¤§é¢è®¢å\",\"condition\":\"#subtotal \u0026amp;amp;gt;= 5000\",\"expression\":\"#subtotal * 0.025\",\"description\":\"å¤§äºç­äº5000å\u0085ï¼2.5%æ¯å©ç\"}]}]}"
+                                      }
+                                  ]
+             },
+    "extData":  null,
+    "i18n":  null,
+    "logMsg":  null,
+    "msg":  "æå",
+    "msgParams":  null,
+    "state":  200,
+    "timestamp":  1774802883928
+}

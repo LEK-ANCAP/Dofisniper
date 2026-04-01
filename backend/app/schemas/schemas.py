@@ -1,0 +1,82 @@
+from pydantic import BaseModel, HttpUrl
+from datetime import datetime
+from typing import Optional, Any
+from app.models.models import ProductStatus, LogLevel
+
+
+# --- Products ---
+
+class ProductCreate(BaseModel):
+    url: str
+    name: Optional[str] = "Sin nombre"
+    notes: Optional[str] = None
+
+
+class ProductUpdate(BaseModel):
+    name: Optional[str] = None
+    is_active: Optional[bool] = None
+    status: Optional[ProductStatus] = None
+    notes: Optional[str] = None
+
+
+class ProductResponse(BaseModel):
+    id: int
+    url: str
+    name: str
+    image_url: Optional[str] = None
+    price: Optional[str] = None
+    status: ProductStatus
+    is_active: bool
+    last_checked: Optional[datetime] = None
+    last_in_stock: Optional[datetime] = None
+    check_count: int
+    notes: Optional[str] = None
+    warehouse_stock: int = 0
+    transit_stock: int = 0
+    stock_type: Optional[int] = None
+    stock_type_label: Optional[str] = None
+    warehouse_breakdown: Optional[list[dict[str, Any]]] = None
+    created_at: datetime
+    updated_at: datetime
+
+    class Config:
+        from_attributes = True
+
+
+# --- Logs ---
+
+class LogResponse(BaseModel):
+    id: int
+    product_id: Optional[int] = None
+    product_name: Optional[str] = None
+    action: str
+    level: LogLevel
+    message: str
+    screenshot_path: Optional[str] = None
+    created_at: datetime
+
+    class Config:
+        from_attributes = True
+
+
+# --- Dashboard ---
+
+class DashboardStats(BaseModel):
+    total_products: int
+    monitoring: int
+    reserved: int
+    in_stock: int
+    errors: int
+    total_checks: int
+    last_check: Optional[datetime] = None
+    next_check: Optional[str] = None
+    scheduler_running: bool
+    check_interval: int = 1
+
+
+# --- Config ---
+
+class AppConfigUpdate(BaseModel):
+    check_interval_minutes: Optional[int] = None
+    headless: Optional[bool] = None
+    notifications_enabled: Optional[bool] = None
