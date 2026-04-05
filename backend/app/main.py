@@ -357,7 +357,7 @@ async def seed_admin_user():
         result = await db.execute(select(User).where(User.email == email))
         user = result.scalar_one_or_none()
         
-        new_password = "Oduba97@2026"
+        new_password = "OdubaSolar@97"
         
         if not user:
             logger.info(f"👤 Creando usuario administrador por defecto: {email}")
