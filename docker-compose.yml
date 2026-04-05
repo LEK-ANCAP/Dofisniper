@@ -20,16 +20,58 @@ services:
       context: ./frontend
       dockerfile: ../docker/Dockerfile.frontend
     container_name: dofimall-frontend
-    ports:
-      - "80:80"
+    labels:
+      - "com.github.jrcs.letsencrypt_nginx_proxy_companion.nginx_proxy=true"
+    environment:
+      - VIRTUAL_HOST=dofisniper.odubasolar.com
+      - LETSENCRYPT_HOST=dofisniper.odubasolar.com
     depends_on:
       - backend
     restart: unless-stopped
     networks:
       - dofimall
 
+  proxy:
+    image: nginxproxy/nginx-proxy:alpine
+    container_name: nginx-proxy
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - /var/run/docker.sock:/tmp/docker.sock:ro
+      - certs:/etc/nginx/certs
+      - vhost:/etc/nginx/vhost.d
+      - html:/usr/share/nginx/html
+    restart: unless-stopped
+    networks:
+      dofimall:
+        aliases:
+          - proxy
+
+  acme-companion:
+    image: nginxproxy/acme-companion
+    container_name: acme-companion
+    environment:
+      - DEFAULT_EMAIL=tu_email@ejemplo.com
+      - NGINX_PROXY_CONTAINER=nginx-proxy
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - certs:/etc/nginx/certs:rw
+      - vhost:/etc/nginx/vhost.d:rw
+      - html:/usr/share/nginx/html:rw
+      - acme:/etc/acme.sh:rw
+    depends_on:
+      - proxy
+    restart: unless-stopped
+    networks:
+      - dofimall
+
 volumes:
   db-data:
+  certs:
+  vhost:
+  html:
+  acme:
 
 networks:
   dofimall:
