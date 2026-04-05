@@ -16,6 +16,8 @@ jobs:
     - name: Crear Tarball del Proyecto
       run: |
         tar -czvf deploy.tar.gz \
+          --exclude='deploy.tar.gz' \
+          --exclude='deploy.zip' \
           --exclude='.git' \
           --exclude='.github' \
           --exclude='venv' \
