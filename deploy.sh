@@ -1,9 +1,13 @@
 #!/bin/bash
 set -e
 
-echo "Descargando dependencias..."
-apt-get update
-apt-get install -y docker.io docker-compose git
+echo "Verificando dependencias (Docker/Git)..."
+if ! command -v git &> /dev/null; then apt-get update && apt-get install -y git; fi
+if ! command -v docker &> /dev/null; then 
+    echo "Instalando Docker Engine oficial..."
+    curl -fsSL https://get.docker.com -o get-docker.sh
+    sh get-docker.sh
+fi
 
 echo "Clonando repositorio..."
 rm -rf Dofisniper
@@ -33,8 +37,14 @@ DATABASE_URL=sqlite+aiosqlite:///./dofimall_sniper.db
 EOF
 
 echo "Levantando la flota completa (Backend + Frontend + Base de Datos)..."
-docker-compose build
-docker-compose up -d
+# Usar el plugin moderno 'docker compose' o el binario antiguo según disponibilidad
+if docker compose version &> /dev/null; then
+    docker compose build
+    docker compose up -d
+else
+    docker-compose build
+    docker-compose up -d
+fi
 
 echo "========================================="
 echo "✅ ¡DESPLIEGUE COMPLETADO EXITOSAMENTE! ✅"
