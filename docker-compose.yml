@@ -52,7 +52,7 @@ services:
     image: nginxproxy/acme-companion
     container_name: acme-companion
     environment:
-      - DEFAULT_EMAIL=tu_email@ejemplo.com
+      - DEFAULT_EMAIL=admin@odubasolar.com
       - NGINX_PROXY_CONTAINER=nginx-proxy
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock:ro
