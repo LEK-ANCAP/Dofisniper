@@ -9,7 +9,8 @@ class Settings(BaseSettings):
     dofimall_base_url: str = "https://www.dofimall.com"
 
     # Scheduler
-    check_interval_minutes: int = 5
+    check_interval_minutes: int = 1
+    check_interval_seconds: int = 5
 
     # Browser
     headless: bool = True

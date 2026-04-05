@@ -13,8 +13,12 @@ async def send_telegram_notification(
     checkout_url: str | None = None,
     price: str | None = None,
     stock_change_msg: str | None = None,
+    is_purchase: bool = False,
+    quantity: int | None = None,
+    warehouse: str | list | None = None,
+    order_id: str | None = None,
 ):
-    """Envía un mensaje de Telegram cuando se detecta stock."""
+    """Envía un mensaje de Telegram (Notificación de Stock o Compra Exitosa)."""
     token = settings.telegram_bot_token
     chat_id = settings.telegram_chat_id
 
@@ -25,15 +29,45 @@ async def send_telegram_notification(
     if not chat_ids:
         return
 
-    message = f"🎯 <b>DofiMall Sniper: {subject}</b>\n\n"
-    message += f"📦 {product_name}\n"
-    if stock_change_msg:
-        message += f"{stock_change_msg}\n"
-    if price:
-        message += f"💵 {price}\n"
+    if is_purchase:
+        message = f"✅ <b>¡RESERVA COMPLETADA!</b>\n"
+        message += f"🎯 {subject}\n\n"
+        message += f"📦 <b>{product_name}</b>\n"
+        if quantity:
+            message += f"🔢 <b>Cantidad:</b> {quantity} uds\n"
+        
+        if warehouse:
+            if isinstance(warehouse, list):
+                # Formatear lista de almacenes JSON
+                lines = []
+                for wh in warehouse:
+                    # wh es dict: {name, warehouse_stock, transit_stock, area}
+                    stock_f = wh.get('warehouse_stock', 0)
+                    stock_t = wh.get('transit_stock', 0)
+                    if stock_f > 0 or stock_t > 0:
+                        detail = []
+                        if stock_f > 0: detail.append(f"{stock_f}U Físico")
+                        if stock_t > 0: detail.append(f"{stock_t}U Tránsito")
+                        lines.append(f"• {wh.get('name')}: {' y '.join(detail)}")
+                
+                warehouse_str = "\n".join(lines) if lines else "Sin stock desglosado"
+            else:
+                warehouse_str = str(warehouse)
+                
+            message += f"📍 <b>Almacén:</b>\n{warehouse_str}\n"
+
+        if order_id:
+            message += f"🆔 <b>Ref/Orden:</b> <code>{order_id}</code>\n"
+    else:
+        message = f"🎯 <b>DofiMall Sniper: {subject}</b>\n\n"
+        message += f"📦 {product_name}\n"
+        if stock_change_msg:
+            message += f"{stock_change_msg}\n"
+        if price:
+            message += f"💵 {price}\n"
     
     url_to_use = checkout_url if checkout_url else product_url
-    message += f"\n👉 <a href='{url_to_use}'>{'🛒 Completar Pago' if checkout_url else 'Ver Producto'}</a>"
+    message += f"\n👉 <a href='{url_to_use}'>{'🛒 PAGAR AHORA' if checkout_url else 'Ver Producto'}</a>"
 
     api_url = f"https://api.telegram.org/bot{token}/sendMessage"
 

@@ -9,7 +9,7 @@ import ConfigPanel from './components/ConfigPanel';
 import {
   fetchDashboard, fetchProducts, fetchLogs,
   addProduct, addProductsBulk, deleteProduct,
-  toggleProduct, triggerCheckNow, manualCheckout
+  toggleProduct, triggerCheckNow, manualCheckout, clearLogs
 } from './utils/api';
 import { Crosshair, RefreshCw, Activity, Settings } from 'lucide-react';
 
@@ -73,9 +73,11 @@ export default function App() {
     }
   };
 
-  const handleToggle = async (id) => {
+  const handleToggle = async (id, options = {}) => {
     try {
-      await toggleProduct(id);
+      if (!options.preventBackend) {
+        await toggleProduct(id);
+      }
       await loadData();
     } catch (e) {
       toast.error(e.message);
@@ -195,7 +197,15 @@ export default function App() {
             onCheckout={handleCheckout}
           />
         ) : tab === 'logs' ? (
-          <LogsPanel logs={logs} onRefresh={loadData} />
+          <LogsPanel logs={logs} onRefresh={loadData} onClear={async () => {
+            try {
+              await clearLogs();
+              toast.success('Historial limpiado');
+              await loadData();
+            } catch(e) {
+              toast.error('Error al limpiar logs');
+            }
+          }} />
         ) : tab === 'config' ? (
           <ConfigPanel />
         ) : null}

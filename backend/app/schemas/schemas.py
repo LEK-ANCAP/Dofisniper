@@ -17,6 +17,9 @@ class ProductUpdate(BaseModel):
     is_active: Optional[bool] = None
     status: Optional[ProductStatus] = None
     notes: Optional[str] = None
+    target_quantity: Optional[int] = None
+    min_stock_to_trigger: Optional[int] = None
+    auto_buy: Optional[bool] = None
 
 
 class ProductResponse(BaseModel):
@@ -36,6 +39,9 @@ class ProductResponse(BaseModel):
     stock_type: Optional[int] = None
     stock_type_label: Optional[str] = None
     warehouse_breakdown: Optional[list[dict[str, Any]]] = None
+    target_quantity: int = 1
+    min_stock_to_trigger: int = 1
+    auto_buy: bool = False
     created_at: datetime
     updated_at: datetime
 
@@ -80,3 +86,18 @@ class AppConfigUpdate(BaseModel):
     check_interval_minutes: Optional[int] = None
     headless: Optional[bool] = None
     notifications_enabled: Optional[bool] = None
+
+# --- Global Settings ---
+
+class AppSettingsSchema(BaseModel):
+    dofimall_email: Optional[str] = None
+    dofimall_password: Optional[str] = None
+    keep_alive_enabled: Optional[bool] = False
+    
+    class Config:
+        from_attributes = True
+
+class AppSettingsUpdate(BaseModel):
+    dofimall_email: Optional[str] = None
+    dofimall_password: Optional[str] = None
+    keep_alive_enabled: Optional[bool] = None

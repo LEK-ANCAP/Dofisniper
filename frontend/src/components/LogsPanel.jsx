@@ -1,4 +1,4 @@
-import { RefreshCw, CheckCircle, AlertTriangle, Info, XCircle } from 'lucide-react';
+import { RefreshCw, CheckCircle, AlertTriangle, Info, XCircle, Trash2 } from 'lucide-react';
 
 const LEVEL_CONFIG = {
   info: { icon: Info, color: 'text-blue-400', dot: 'bg-blue-400' },
@@ -16,18 +16,29 @@ function formatTime(dateStr) {
   });
 }
 
-export default function LogsPanel({ logs, onRefresh }) {
+export default function LogsPanel({ logs, onRefresh, onClear }) {
   return (
     <div className="bg-surface-800/60 border border-surface-700/40 rounded-xl overflow-hidden">
       <div className="flex items-center justify-between px-5 py-3 border-b border-surface-700/40">
         <h3 className="text-sm font-semibold text-white">Actividad reciente</h3>
-        <button
-          onClick={onRefresh}
-          className="p-1.5 rounded-md hover:bg-surface-700/50 transition-colors"
-          title="Refrescar"
-        >
-          <RefreshCw size={13} className="text-surface-200/40" />
-        </button>
+        <div className="flex items-center gap-1">
+          {onClear && logs.length > 0 && (
+            <button
+              onClick={onClear}
+              className="p-1.5 rounded-md hover:bg-red-500/15 transition-colors group"
+              title="Limpiar historial"
+            >
+              <Trash2 size={13} className="text-surface-200/40 group-hover:text-red-400 transition-colors" />
+            </button>
+          )}
+          <button
+            onClick={onRefresh}
+            className="p-1.5 rounded-md hover:bg-surface-700/50 transition-colors"
+            title="Refrescar"
+          >
+            <RefreshCw size={13} className="text-surface-200/40" />
+          </button>
+        </div>
       </div>
 
       {logs.length === 0 ? (

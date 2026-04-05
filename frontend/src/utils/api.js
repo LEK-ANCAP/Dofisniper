@@ -29,6 +29,8 @@ export const toggleProduct = (id) =>
   request(`/products/${id}/toggle`, { method: 'POST' });
 export const manualCheckout = (id) =>
   request(`/products/${id}/checkout`, { method: 'POST' });
+export const fetchLiveView = (id) =>
+  request(`/products/${id}/live-view`);
 
 // Logs
 export const fetchLogs = (limit = 50) => request(`/logs/?limit=${limit}`);
@@ -44,3 +46,9 @@ export const updateConfig = (data) =>
   request('/config', { method: 'POST', body: JSON.stringify(data) });
 export const testNotification = () =>
   request('/notifications/test', { method: 'POST' });
+
+// Settings (DofiMall Credentials)
+export const fetchSettings = () => request('/settings');
+export const updateSettings = (data) =>
+  request('/settings', { method: 'PATCH', body: JSON.stringify(data) });
+export const forceLogout = () => request('/settings/logout', { method: 'POST' });

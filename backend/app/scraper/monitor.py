@@ -18,7 +18,7 @@ STOCK_TYPE_LABELS = {
     1: "En tránsito",
     2: "Esperando producción",
 }
-VALID_STOCK_TYPES = {0, 1}
+VALID_STOCK_TYPES = {0, 1, 2}
 
 HEADERS = {
     "User-Agent": (
@@ -250,8 +250,7 @@ async def _parse_api_response_all_warehouses(
 
     is_valid_type = stock_type in VALID_STOCK_TYPES
     has_stock = total_warehouse_stock > 0 or total_transit_stock > 0
-    is_agotado = product_name and "agotado" in product_name.lower()
-    is_available = is_valid_type and has_stock and not is_agotado
+    is_available = is_valid_type and has_stock
 
     status_msg = (
         f"Tipo: {stock_type_label}, "

@@ -7,6 +7,7 @@ import enum
 class ProductStatus(str, enum.Enum):
     MONITORING = "monitoring"       # Activamente monitorizando
     IN_STOCK = "in_stock"           # Detectado en stock
+    PURCHASING = "purchasing"       # Compra automática en proceso
     RESERVED = "reserved"           # Añadido al carrito / reservado
     PAUSED = "paused"               # Pausado por el usuario
     ERROR = "error"                 # Error en el scraping
@@ -41,6 +42,11 @@ class Product(Base):
     stock_type_label = Column(String(100), nullable=True)
     warehouse_breakdown = Column(JSON, nullable=True)  # [{name, warehouse_stock, transit_stock, area}, ...]
 
+    # Snipe Config
+    target_quantity = Column(Integer, default=1)      # Cantidad que intentar comprar
+    min_stock_to_trigger = Column(Integer, default=1) # Stock mínimo para disparar el snipe
+    auto_buy = Column(Boolean, default=False)          # Compra automática independiente de monitorización
+
     created_at = Column(DateTime, server_default=func.now())
     updated_at = Column(DateTime, server_default=func.now(), onupdate=func.now())
 
@@ -68,3 +74,13 @@ class StockHistory(Base):
     old_transit_stock = Column(Integer, default=0)
     new_transit_stock = Column(Integer, default=0)
     created_at = Column(DateTime, server_default=func.now())
+
+
+class AppSettings(Base):
+    __tablename__ = "app_settings"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    dofimall_email = Column(String(255), nullable=True)
+    dofimall_password = Column(String(255), nullable=True)
+    keep_alive_enabled = Column(Boolean, default=False)
+    updated_at = Column(DateTime, server_default=func.now(), onupdate=func.now())

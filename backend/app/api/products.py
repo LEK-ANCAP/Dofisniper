@@ -9,6 +9,8 @@ from app.models.models import Product, ProductStatus
 from app.schemas.schemas import ProductCreate, ProductUpdate, ProductResponse
 from app.scraper.browser import browser_manager
 from app.scraper.purchase import add_to_cart_and_checkout
+from app.scraper.live_view import live_view_manager
+from app.notifications.telegram import send_telegram_notification
 
 router = APIRouter(prefix="/products", tags=["products"])
 
@@ -127,11 +129,33 @@ async def toggle_product(product_id: int, db: AsyncSession = Depends(get_db)):
 async def _run_checkout_background(product_id: int, product_url: str):
     """Ejecuta el checkout en segundo plano y actualiza la DB al finalizar."""
     from app.core.database import async_session
-    from app.models.models import ActionLog, LogLevel
+    from app.models.models import ActionLog, LogLevel, AppSettings
+    from sqlalchemy import select
     
     try:
+        # Extraer parámetros dinámicos
+        async with async_session() as db:
+            result_db = await db.execute(select(Product).where(Product.id == product_id))
+            prod = result_db.scalar_one_or_none()
+            target_qty = prod.target_quantity if prod else 1
+            
+            settings_db = await db.execute(select(AppSettings).limit(1))
+            sys_settings = settings_db.scalar_one_or_none()
+            email = sys_settings.dofimall_email if sys_settings else ""
+            password = sys_settings.dofimall_password if sys_settings else ""
+            
+            actual_target_qty = target_qty
+            if actual_target_qty == -1:
+                total_stock = (prod.warehouse_stock or 0) + (prod.transit_stock or 0)
+                actual_target_qty = total_stock if total_stock > 0 else 1
+
         page = await browser_manager.get_page()
-        checkout_result = await add_to_cart_and_checkout(page, product_url)
+        checkout_result = await add_to_cart_and_checkout(
+            page, product_url, 
+            target_quantity=actual_target_qty, 
+            email=email, password=password,
+            product_id=product_id
+        )
         await browser_manager.close_page(page)
 
         # Si triunfa, abrimos una nueva sesión de DB para guardarlo
@@ -150,6 +174,18 @@ async def _run_checkout_background(product_id: int, product_url: str):
                     )
                     db.add(log)
                     await db.commit()
+
+                    # Notificación de Compra Exitosa (Manual)
+                    await send_telegram_notification(
+                        subject="COMPRA MANUAL LOGRADA 🎯",
+                        product_name=prod.name,
+                        product_url=prod.url,
+                        checkout_url=checkout_result.get("checkout_url"),
+                        is_purchase=True,
+                        quantity=actual_target_qty,
+                        warehouse=prod.warehouse_breakdown
+                    )
+            return checkout_result
         else:
             # Log de fallo capturado internamente
             async with async_session() as db:
@@ -163,7 +199,8 @@ async def _run_checkout_background(product_id: int, product_url: str):
                     )
                     db.add(log)
                     await db.commit()
-                    
+            return checkout_result
+            
     except Exception as e:
         # Failsafe critical
         try:
@@ -177,6 +214,7 @@ async def _run_checkout_background(product_id: int, product_url: str):
                 await db.commit()
         except:
             pass
+        return {"success": False, "message": f"Excepción crítica durante checkout: {str(e)}"}
 
 
 @router.post("/{product_id}/checkout")
@@ -194,7 +232,13 @@ async def manual_checkout(product_id: int, background_tasks: BackgroundTasks, db
     if not product:
         raise HTTPException(404, "Producto no encontrado")
 
-    # Disparamos tarea en background para no bloquear otras llamadas mientras Playwright espera
-    background_tasks.add_task(_run_checkout_background, product.id, product.url)
+    # Ejecutar checkout de forma asíncrona pero bloqueando (esperando)
+    # para poder devolver la traza directa al frontend y la inserte en el terminal
+    final_result = await _run_checkout_background(product.id, product.url)
+    return final_result
 
-    return {"success": True, "message": "Checkout iniciado en segundo plano. Comprueba la pestaña 'Actividad'."}
+@router.get("/{product_id}/live-view")
+async def get_product_live_view(product_id: int):
+    """Retorna el último frame en base64 para visualización en tiempo real."""
+    frame = live_view_manager.get_frame(product_id)
+    return {"frame": frame}

@@ -23,10 +23,11 @@ from loguru import logger
 
 from app.core.config import get_settings
 from app.core.database import init_db, get_db, async_session
-from app.models.models import Product, ActionLog, ProductStatus, LogLevel, StockHistory
+from app.models.models import Product, ActionLog, ProductStatus, LogLevel, StockHistory, AppSettings
 from app.schemas.schemas import DashboardStats
 from app.api.products import router as products_router
 from app.api.logs import router as logs_router
+from app.api.settings import router as settings_router
 from app.scraper.monitor import check_stock
 from app.scraper.browser import browser_manager
 from app.scraper.purchase import add_to_cart_and_checkout
@@ -164,37 +165,73 @@ async def check_all_products():
                             logger.info(f"🔕 Notificación de stock omitida (desactivado en configuración)")
 
                     # ── AUTO-RESERVA (Checkout Automático) ──
-                    # TEMPORALMENTE DESHABILITADO POR PETICIÓN DEL USUARIO PARA PRUEBAS MANUALES
-                    # if browser_manager.is_running:
-                    #     try:
-                    #         logger.info(f"⚡ Iniciando auto-checkout para {product.name}")
-                    #         page = await browser_manager.get_page()
-                    #         checkout_result = await add_to_cart_and_checkout(page, product.url)
-                    #         
-                    #         if checkout_result["success"]:
-                    #             await _log_action(
-                    #                 db, product.id, product.name,
-                    #                 "auto_purchase", LogLevel.SUCCESS,
-                    #                 checkout_result["message"]
-                    #             )
-                    #             # Cambiar estado a RESERVED para que deje de comprobarse en bucle
-                    #             product.status = ProductStatus.RESERVED
-                    #             logger.warning(f"🔴 Producto {product.id} reservado, deteniendo monitorización...")
-                    #         else:
-                    #             await _log_action(
-                    #                 db, product.id, product.name,
-                    #                 "auto_purchase_failed", LogLevel.ERROR,
-                    #                 checkout_result["message"]
-                    #             )
-                    #         
-                    #         await browser_manager.close_page(page)
-                    #     except Exception as e:
-                    #         logger.error(f"❌ Error en auto-checkout: {e}")
-                    #         await _log_action(
-                    #             db, product.id, product.name,
-                    #             "auto_purchase_error", LogLevel.ERROR,
-                    #             f"Excepción: {str(e)}"
-                    #         )
+                    if product.auto_buy and browser_manager.is_running and stock_result.total_available >= product.min_stock_to_trigger:
+                        try:
+                            settings_db = await db.execute(select(AppSettings).limit(1))
+                            sys_settings = settings_db.scalar_one_or_none()
+                            email = sys_settings.dofimall_email if sys_settings else ""
+                            password = sys_settings.dofimall_password if sys_settings else ""
+
+                            logger.info(f"⚡ Iniciando auto-checkout para {product.name} (Meta: {'MÁX' if product.target_quantity == -1 else product.target_quantity} uds)")
+                            
+                            # Avisamos al frontend visualmente que estamos atacando
+                            product.status = ProductStatus.PURCHASING
+                            await db.commit()
+                            
+                            page = await browser_manager.get_page()
+                            
+                            actual_target_qty = product.target_quantity
+                            if actual_target_qty == -1:
+                                actual_target_qty = stock_result.total_available
+                                logger.info(f"Opcion MAX seleccionada. Usando iterador de stock: {actual_target_qty}")
+
+                            checkout_result = await add_to_cart_and_checkout(
+                                page, product.url,
+                                target_quantity=actual_target_qty,
+                                email=email, password=password,
+                                product_id=product.id
+                            )
+                            
+                            if checkout_result.get("success"):
+                                await _log_action(
+                                    db, product.id, product.name,
+                                    "auto_purchase", LogLevel.SUCCESS,
+                                    checkout_result.get("message", "Auto-compra finalizada")
+                                )
+                                
+                                # Notificación de Compra Exitosa
+                                await send_telegram_notification(
+                                    subject="AUTO-COMPRA LOGRADA ⚡",
+                                    product_name=product.name,
+                                    product_url=product.url,
+                                    checkout_url=checkout_result.get("checkout_url"),
+                                    is_purchase=True,
+                                    quantity=actual_target_qty,
+                                    warehouse=stock_result.warehouse_breakdown
+                                )
+
+                                # Cambiar estado a RESERVED para que deje de comprobarse en bucle
+                                product.status = ProductStatus.RESERVED
+                                logger.warning(f"🔴 Producto {product.id} reservado, deteniendo monitorización...")
+                            else:
+                                product.status = ProductStatus.IN_STOCK
+                                await db.commit()
+                                await _log_action(
+                                    db, product.id, product.name,
+                                    "auto_purchase_failed", LogLevel.ERROR,
+                                    checkout_result.get("message", "Error en auto-checkout")
+                                )
+                            
+                            await browser_manager.close_page(page)
+                        except Exception as e:
+                            logger.error(f"❌ Error en auto-checkout: {e}")
+                            product.status = ProductStatus.IN_STOCK
+                            await db.commit()
+                            await _log_action(
+                                db, product.id, product.name,
+                                "auto_purchase_error", LogLevel.ERROR,
+                                f"Excepción: {str(e)}"
+                            )
 
                 else:
                     # No disponible
@@ -279,6 +316,38 @@ async def init_browser_background():
         logger.warning("El auto-checkout no funcionará, compruébalo ejecutando login_manager.py primero")
 
 
+async def run_keep_alive():
+    """ Tarea en segundo plano para mantener la sesión viva navegando al carrito cada 5 min """
+    try:
+        async for db in get_db():
+            settings_db = await db.execute(select(AppSettings).limit(1))
+            sys_settings = settings_db.scalar_one_or_none()
+            if sys_settings and sys_settings.keep_alive_enabled:
+                if browser_manager.is_running:
+                    logger.info("🛡️ Keep-Alive: Recargando sesión silenciosamente (visitando /cart)")
+                    try:
+                        page = await browser_manager.get_page()
+                        await page.goto("https://www.dofimall.com/cart", wait_until="domcontentloaded", timeout=20000)
+                        await page.wait_for_timeout(2000)
+                        
+                        from app.scraper.purchase import execute_login_bypass
+                        logger.info("🛡️ Verificando integridad de sesión en el carrito...")
+                        login_result = await execute_login_bypass(page, sys_settings.dofimall_email, sys_settings.dofimall_password)
+                        
+                        if login_result.get("success") and "Ya estaba logueado" not in login_result.get("message", ""):
+                            logger.info("🛡️ Detectó sesión cerrada, pero el bypass logró auto-loguearse de forma exitosa.")
+                        elif not login_result.get("success"):
+                            logger.error(f"🛡️ Detectó sesión cerrada y el Bypass falló: {login_result.get('message')}")
+                            
+                        await browser_manager.close_page(page)
+                        logger.info("🛡️ Keep-Alive completado existosamente.")
+                    except Exception as e:
+                        logger.warning(f"🛡️ Error en Keep-Alive: {e}")
+            break # solo iterar una vez el generador
+    except Exception as e:
+        logger.error(f"Error gestionando db en Keep-Alive: {e}")
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     logger.info("🚀 Iniciando DofiMall Sniper...")
@@ -288,18 +357,31 @@ async def lifespan(app: FastAPI):
     # Iniciar Browser Manager Persistente en una tarea de fondo
     asyncio.create_task(init_browser_background())
 
+    logger.info(f"⏰ Scheduler iniciado — comprobando cada {settings.check_interval_seconds} seg")
+    
     scheduler.add_job(
         check_all_products,
         "interval",
-        minutes=settings.check_interval_minutes,
+        seconds=settings.check_interval_seconds,
         id="stock_checker",
         name="Stock Checker",
         replace_existing=True,
         max_instances=1,
     )
+    
+    scheduler.add_job(
+        run_keep_alive,
+        "interval",
+        minutes=5,
+        id="keep_alive_session",
+        name="Keep Alive Session",
+        replace_existing=True,
+        max_instances=1,
+    )
+    
     scheduler.start()
     logger.info(
-        f"⏰ Scheduler iniciado — comprobando cada {settings.check_interval_minutes} min"
+        f"⏰ Scheduler activado (Keep-alive programado cada 5 min)"
     )
 
     yield
@@ -330,6 +412,7 @@ app.add_middleware(
 
 app.include_router(products_router, prefix="/api")
 app.include_router(logs_router, prefix="/api")
+app.include_router(settings_router, prefix="/api")
 
 
 @app.get("/api/dashboard", response_model=DashboardStats)
