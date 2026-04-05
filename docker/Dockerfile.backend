@@ -1,15 +1,29 @@
 FROM mcr.microsoft.com/playwright/python:v1.49.0-jammy
 
+# Evitar que python genere archivos .pyc y habilitar logs instantáneos
+ENV PYTHONDONTWRITEBYTECODE=1
+ENV PYTHONUNBUFFERED=1
+
 WORKDIR /app
 
+# Instalar dependencias primero para aprovechar el cache de Docker
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
+
+# Instalar solo el navegador necesario (Chromium) para ahorrar espacio
 RUN playwright install chromium
 
+# Copiar el código del backend
 COPY . .
 
-RUN mkdir -p screenshots logs
+# Crear directorios necesarios
+RUN mkdir -p screenshots logs data
 
+# Exponer puerto de la API
 EXPOSE 8000
+
+# Monitoreo de salud interno
+HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
+  CMD curl -f http://localhost:8000/api/dashboard || exit 1
 
 CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]

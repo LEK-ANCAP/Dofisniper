@@ -4,6 +4,7 @@ services:
       context: ./backend
       dockerfile: ../docker/Dockerfile.backend
     container_name: dofimall-backend
+    restart: always
     env_file: ./backend/.env
     environment:
       - DATABASE_URL=sqlite+aiosqlite:////app/data/dofimall_sniper.db
@@ -11,7 +12,11 @@ services:
       - ./backend/screenshots:/app/screenshots
       - ./backend/logs:/app/logs
       - db-data:/app/data
-    restart: unless-stopped
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
     networks:
       - dofimall
 
@@ -20,6 +25,7 @@ services:
       context: ./frontend
       dockerfile: ../docker/Dockerfile.frontend
     container_name: dofimall-frontend
+    restart: always
     labels:
       - "com.github.jrcs.letsencrypt_nginx_proxy_companion.nginx_proxy=true"
     environment:
@@ -27,7 +33,11 @@ services:
       - LETSENCRYPT_HOST=dofisniper.odubasolar.com
     depends_on:
       - backend
-    restart: unless-stopped
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
     networks:
       - dofimall
 
@@ -42,7 +52,7 @@ services:
       - certs:/etc/nginx/certs
       - vhost:/etc/nginx/vhost.d
       - html:/usr/share/nginx/html
-    restart: unless-stopped
+    restart: always
     networks:
       dofimall:
         aliases:
@@ -62,7 +72,7 @@ services:
       - acme:/etc/acme.sh:rw
     depends_on:
       - proxy
-    restart: unless-stopped
+    restart: always
     networks:
       - dofimall
 
