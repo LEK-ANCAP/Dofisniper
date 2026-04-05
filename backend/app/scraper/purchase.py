@@ -362,17 +362,17 @@ async def add_to_cart_and_checkout(
         # Click en botón de pagar/checkout
         await record_step("Escaneando el DOM buscando el botón final de PAGO (Checkout)")
         try:
-            # Usando un selector más robusto enfocado al texto exacto que DofiMall renderiza: 'Pagar'
-            # y también las clases que vimos en tu captura de carrito.
-            checkout_locator = page.locator("div.goBuy, div.go_buy, div.go_submit, div:has-text('Pagar'), span:has-text('Pagar')").locator("visible=true:has-text('Pagar')").first
-            await checkout_locator.wait_for(state="visible", timeout=10000)
+            # Buscar el botón principal del carrito goBuy u otro contenedor de texto
+            checkout_locator = page.locator(".goBuy, .cart-submit, .submit-btn, .cart-pay, button:has-text('Pagar'), div.goBuy").first
+            await checkout_locator.wait_for(state="attached", timeout=5000)
             checkout_btn = checkout_locator
             await record_step("Botón de Pagar detectado y visible.")
         except PlaywrightTimeout:
-            # Plan B: buscar solo por texto 'Pagar' si las clases cambiaron
             try:
-                checkout_btn = page.get_by_text("Pagar", exact=True).locator("visible=true").first
-                await checkout_btn.wait_for(state="visible", timeout=5000)
+                # Plan B: buscar por Regex para soportar cosas como Pagar(1) o Pagar
+                checkout_locator = page.locator("text=/Pagar/i, text=/Comprar/i").last
+                await checkout_locator.wait_for(state="attached", timeout=5000)
+                checkout_btn = checkout_locator
                 await record_step("Botón de Pagar detectado mediante texto.")
             except PlaywrightTimeout:
                 checkout_btn = None
@@ -391,13 +391,13 @@ async def add_to_cart_and_checkout(
             return result
             
         await record_step("Presionando Confirmar y Pagar ('Checkout')")
-        # Cambiamos a click() nativo de Playwright por defecto para emitir PointerEvents completos que Vue requiere
         try:
-            await checkout_btn.click()
-            logger.info("🖱️ Mouse Click en 'Pagar'")
-        except:
+            # Ejecutar raw click vía Javascript para saltar overlays transparentes en Vue
+            await checkout_btn.evaluate("element => element.click()")
+            logger.info("🖱️ DOM JS Click ejecutado sobre 'Pagar'")
+        except Exception as e:
             await checkout_btn.click(force=True)
-            logger.info("🖱️ Force Click en 'Pagar'")
+            logger.info("🖱️ Force Click nativo en 'Pagar'")
         
         # Esperamos explícitamente a que Vue monte la nueva pantalla (en lugar del timeout fijo, monitoreamos DOM)
         await page.wait_for_timeout(4000)
@@ -407,11 +407,15 @@ async def add_to_cart_and_checkout(
         # 1. Click en el botón "Enviar pedido"
         try:
             await record_step("Buscando botón 'Enviar pedido'")
-            enviar_btn = page.locator("button:has-text('Enviar pedido'), span:has-text('Enviar pedido'), .goBuy").locator("visible=true").first
-            await enviar_btn.wait_for(state="visible", timeout=10000)
+            enviar_btn = page.locator("button:has-text('Enviar pedido'), span:has-text('Enviar pedido'), .submit-btn, .goBuy").last
+            await enviar_btn.wait_for(state="attached", timeout=10000)
             # DofiMall tiene muchas capas superpuestas en el pre-checkout. Siempre forzamos.
-            await enviar_btn.click(force=True)
-            logger.info("🖱️ Force Click ejecutado en 'Enviar pedido'")
+            try:
+                await enviar_btn.evaluate("element => element.click()")
+                logger.info("🖱️ DOM JS Click ejecutado en 'Enviar pedido'")
+            except:
+                await enviar_btn.click(force=True)
+                logger.info("🖱️ Force Click ejecutado en 'Enviar pedido'")
             # Dar tiempo a que el modal "Aviso" emerja con su animación
             await page.wait_for_timeout(3000)
         except PlaywrightTimeout:
@@ -421,13 +425,15 @@ async def add_to_cart_and_checkout(
         try:
             await record_step("Buscando botón 'Estoy de acuerdo' en el aviso legal")
             # Busqueda infalible: Filtrando el typo del desarrollador de Vue ('colse' en vez de 'close'). 
-            # El botón de Iniciar tiene SOLO la clase agreement-btn.
-            acuerdo_btn = page.locator("div.agreement-btn:not(.agreement-btn--colse)").locator("visible=true").first
+            acuerdo_btn = page.locator("div.agreement-btn:not(.agreement-btn--colse)").last
+            await acuerdo_btn.wait_for(state="attached", timeout=15000)
             
-            await acuerdo_btn.wait_for(state="visible", timeout=15000)
-            
-            await acuerdo_btn.click(force=True)
-            logger.info("🖱️ Force Click ejecutado en 'Estoy de acuerdo'")
+            try:
+                await acuerdo_btn.evaluate("element => element.click()")
+                logger.info("🖱️ DOM JS Click ejecutado en 'Estoy de acuerdo'")
+            except:    
+                await acuerdo_btn.click(force=True)
+                logger.info("🖱️ Force Click ejecutado en 'Estoy de acuerdo'")
             
             # CRÍTICO: Una vez dado clic, DofiMall envía el POST request de compra.
             await record_step("Transacción enviada. Esperando redirección bancaria a /buy/Pay...")
