@@ -52,11 +52,15 @@ export default function App() {
     }
   };
 
-  const handleAddBulk = async (urls) => {
+  const handleAddBulk = async (items) => {
     try {
-      const products = urls.map(url => ({ url: url.trim() }));
-      await addProductsBulk(products);
-      toast.success(`${products.length} productos añadidos`);
+      // items can be an array of strings (urls) or objects {url, name}
+      const productsToAdd = items.map(item => {
+        if (typeof item === 'string') return { url: item.trim() };
+        return { url: item.url.trim(), name: item.name };
+      });
+      await addProductsBulk(productsToAdd);
+      toast.success(`${productsToAdd.length} productos añadidos`);
       await loadData();
     } catch (e) {
       toast.error(e.message);
@@ -195,6 +199,7 @@ export default function App() {
             onDelete={handleDelete}
             onToggle={handleToggle}
             onCheckout={handleCheckout}
+            onAddBulk={handleAddBulk}
           />
         ) : tab === 'logs' ? (
           <LogsPanel logs={logs} onRefresh={loadData} onClear={async () => {

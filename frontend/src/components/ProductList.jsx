@@ -2,7 +2,7 @@ import { useState, useEffect, useRef } from 'react';
 import {
   Trash2, Pause, Play, ExternalLink, Clock,
   ShoppingCart, AlertTriangle, Eye, Package,
-  Warehouse, Truck, ChevronDown, ChevronUp, MapPin, Target, Zap, X, Terminal, Camera, Activity, Download
+  Warehouse, Truck, ChevronDown, ChevronUp, MapPin, Target, Zap, X, Terminal, Camera, Activity, Download, Upload
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { updateProduct, manualCheckout, fetchLogs, fetchLiveView } from '../utils/api';
@@ -552,8 +552,9 @@ function ProductItem({ product, i, onOpenModal, onDelete, onToggle, onCheckout }
   );
 }
 
-export default function ProductList({ products, loading, onDelete, onToggle, onCheckout }) {
+export default function ProductList({ products, loading, onDelete, onToggle, onCheckout, onAddBulk }) {
   const [selectedProduct, setSelectedProduct] = useState(null);
+  const fileInputRef = useRef(null);
 
   if (loading) {
     return (
@@ -586,6 +587,49 @@ export default function ProductList({ products, loading, onDelete, onToggle, onC
     document.body.removeChild(link);
   };
 
+  const handleImport = (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      const text = event.target.result;
+      const lines = text.split('\n');
+      const items = [];
+      
+      let startIdx = 0;
+      if (lines.length > 0 && lines[0].toLowerCase().includes('url')) {
+         startIdx = 1;
+      }
+
+      for (let i = startIdx; i < lines.length; i++) {
+        let line = lines[i].trim();
+        if (!line) continue;
+
+        // Soporte básico para CSV generado por Exportar
+        const parts = line.split(',');
+        if (parts.length >= 2) {
+           const rawName = parts.slice(0, -1).join(','); 
+           const name = rawName.replace(/^"|"$/g, '').replace(/""/g, '"');
+           const url = parts[parts.length - 1].replace(/^"|"$/g, '').trim();
+           if (url.startsWith('http')) {
+               items.push({ name, url });
+           }
+        } else if (parts.length === 1 && line.includes('http')) {
+           items.push({ url: line.replace(/^"|"$/g, '').trim() });
+        }
+      }
+
+      if (items.length > 0) {
+        if(onAddBulk) onAddBulk(items);
+      } else {
+        toast.error("El archivo CSV no contiene URLs válidas.");
+      }
+    };
+    reader.readAsText(file);
+    e.target.value = null; // reset
+  };
+
   return (
     <div className="space-y-4">
       {/* Header del panel de productos */}
@@ -593,13 +637,31 @@ export default function ProductList({ products, loading, onDelete, onToggle, onC
          <span className="text-xs font-semibold text-surface-400 uppercase tracking-widest">
             {products.length} Objetivos
          </span>
-         <button 
-           onClick={handleExport} 
-           className="flex items-center gap-2 text-xs font-medium text-brand-400 hover:text-brand-300 transition-colors bg-brand-500/10 hover:bg-brand-500/20 px-3 py-1.5 rounded-lg border border-brand-500/20 shadow-sm"
-           title="Exportar inventario a CSV"
-         >
-            <Download size={14} /> Exportar CSV
-         </button>
+         
+         <div className="flex items-center gap-2">
+           <input 
+              type="file" 
+              accept=".csv" 
+              ref={fileInputRef} 
+              className="hidden" 
+              onChange={handleImport} 
+           />
+           <button 
+             onClick={() => fileInputRef.current?.click()} 
+             className="flex items-center gap-2 text-xs font-medium text-emerald-400 hover:text-emerald-300 transition-colors bg-emerald-500/10 hover:bg-emerald-500/20 px-3 py-1.5 rounded-lg border border-emerald-500/20 shadow-sm"
+             title="Importar lista de URLs desde CSV"
+           >
+              <Upload size={14} /> Importar
+           </button>
+           
+           <button 
+             onClick={handleExport} 
+             className="flex items-center gap-2 text-xs font-medium text-brand-400 hover:text-brand-300 transition-colors bg-brand-500/10 hover:bg-brand-500/20 px-3 py-1.5 rounded-lg border border-brand-500/20 shadow-sm"
+             title="Exportar inventario a CSV"
+           >
+              <Download size={14} /> Exportar
+           </button>
+         </div>
       </div>
 
       <div className="space-y-2">
