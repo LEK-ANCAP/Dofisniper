@@ -30,11 +30,11 @@ async def get_products(
     return result.scalars().all()
 
 
-@router.get("/image-proxy")
+@public_router.get("/image-proxy")
 async def proxy_image(url: str):
-    """Proxy de imágenes de DofiMall para evadir Mixed Content y errores SSL."""
+    """Proxy de imágenes de DofiMall para evadir Mixed Content y errores SSL. Público."""
     async def fetch_and_stream():
-        # Dofimall a veces falla con HTTPS o rechaza requests sin User-Agent
+        # Dofimall a veces falla con HTTPS o rechaza requests sin User-Agent/Referer
         fetch_url = url.replace("https://", "http://") if "shopin.net" in url else url
         
         try:
@@ -42,7 +42,10 @@ async def proxy_image(url: str):
                 async with client.stream(
                     "GET", 
                     fetch_url, 
-                    headers={"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)"}
+                    headers={
+                        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+                        "Referer": "https://www.dofimall.com/"
+                    }
                 ) as response:
                     async for chunk in response.aiter_bytes():
                         yield chunk

@@ -433,10 +433,13 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Authentication (Public)
+# Public Routes
 app.include_router(auth_router, prefix="/api")
 
 # Protected Routes
+from app.api.products import public_router as public_products_router
+app.include_router(public_products_router, prefix="/api") # Image proxy is here, no auth required
+
 app.include_router(products_router, prefix="/api", dependencies=[Depends(get_current_user)])
 app.include_router(logs_router, prefix="/api", dependencies=[Depends(get_current_user)])
 app.include_router(settings_router, prefix="/api", dependencies=[Depends(get_current_user)])
