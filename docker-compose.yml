@@ -27,8 +27,8 @@ services:
     container_name: dofimall-frontend
     restart: always
     environment:
-      - VIRTUAL_HOST=dofisniper.odubasolar.com
-      - LETSENCRYPT_HOST=dofisniper.odubasolar.com
+      - VIRTUAL_HOST=dofisniper.odubasolar.com,www.dofisniper.odubasolar.com
+      - LETSENCRYPT_HOST=dofisniper.odubasolar.com,www.dofisniper.odubasolar.com
     depends_on:
       - backend
     logging:
