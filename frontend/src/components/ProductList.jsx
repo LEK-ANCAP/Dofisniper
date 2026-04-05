@@ -419,7 +419,7 @@ function ProductItem({ product, i, onOpenModal, onDelete, onToggle, onCheckout }
           {/* Image */}
           <div className="w-12 h-12 rounded-lg bg-surface-700/50 flex-shrink-0 overflow-hidden">
             {product.image_url ? (
-              <img src={product.image_url} alt="" className="w-full h-full object-cover" />
+              <img src={product.image_url.replace('http://', 'https://')} alt="" className="w-full h-full object-cover" />
             ) : (
               <div className="w-full h-full flex items-center justify-center">
                 <Package size={18} className="text-surface-200/20" />
