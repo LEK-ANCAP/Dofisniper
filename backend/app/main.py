@@ -27,6 +27,7 @@ from app.scraper.browser import browser_manager
 from app.scraper.purchase import add_to_cart_and_checkout
 from app.api.auth import router as auth_router, get_current_user, get_password_hash
 from app.models.models import Product, ActionLog, ProductStatus, LogLevel, StockHistory, AppSettings, User
+from app.schemas.schemas import DashboardStats
 from app.api.products import router as products_router
 from app.api.logs import router as logs_router
 from app.api.settings import router as settings_router
