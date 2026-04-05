@@ -15,6 +15,7 @@ import httpx
 from fastapi.responses import StreamingResponse
 
 router = APIRouter(prefix="/products", tags=["products"])
+public_router = APIRouter(prefix="/products", tags=["products_public"])
 
 
 @router.get("/", response_model=List[ProductResponse])
