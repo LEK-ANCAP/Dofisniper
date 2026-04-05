@@ -139,8 +139,8 @@ export default function IntelligenceDashboard() {
          <div className={glass}>
             <div className="text-xs text-surface-400 font-semibold uppercase tracking-wider mb-1">Stock Total</div>
             <div className="text-3xl font-bold text-white flex items-baseline gap-2">
-               {kpis?.total_warehouse + kpis?.total_transit}
-               <span className="text-xs text-surface-400 font-mono">({kpis?.total_warehouse}W / {kpis?.total_transit}T)</span>
+               {(kpis?.total_warehouse || 0) + (kpis?.total_transit || 0)}
+               <span className="text-xs text-surface-400 font-mono">({kpis?.total_warehouse || 0}W / {kpis?.total_transit || 0}T)</span>
             </div>
          </div>
          <div className={glass}>

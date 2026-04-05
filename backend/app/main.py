@@ -399,12 +399,12 @@ async def lifespan(app: FastAPI):
     # Iniciar Browser Manager Persistente en una tarea de fondo
     asyncio.create_task(init_browser_background())
 
-    logger.info(f"⏰ Scheduler iniciado — comprobando cada 60 seg (Market Intelligence Hardcoded)")
+    logger.info(f"⏰ Scheduler iniciado — comprobando cada 10 seg (Market Intelligence Hardcoded)")
     
     scheduler.add_job(
         check_all_products,
         "interval",
-        seconds=60,
+        seconds=10,
         id="stock_checker",
         name="Stock Checker",
         replace_existing=True,

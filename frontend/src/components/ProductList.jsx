@@ -2,10 +2,10 @@ import { useState, useEffect, useRef } from 'react';
 import {
   Trash2, Pause, Play, ExternalLink, Clock,
   ShoppingCart, AlertTriangle, Eye, Package,
-  Warehouse, Truck, ChevronDown, ChevronUp, MapPin, Target, Zap, X, Terminal, Camera, Activity, Download, Upload
+  Warehouse, Truck, ChevronDown, ChevronUp, MapPin, Target, Zap, X, Terminal, Camera, Activity, Download, Upload, Edit3, BarChart
 } from 'lucide-react';
 import toast from 'react-hot-toast';
-import { updateProduct, manualCheckout, fetchLogs, fetchLiveView } from '../utils/api';
+import { updateProduct, manualCheckout, fetchLogs, fetchLiveView, fetchProductHistory, fetchCategories } from '../utils/api';
 
 const STATUS_CONFIG = {
   monitoring: { label: 'Monitorizando', color: 'bg-amber-500/15 text-amber-400 border-amber-500/20', icon: Eye },
@@ -403,7 +403,122 @@ function ProductSnipeModal({ product, onClose, onToggle }) {
   );
 }
 
-function ProductItem({ product, i, onOpenModal, onDelete, onToggle, onCheckout }) {
+
+function EditProductModal({ product, categories, onClose, onSaved }) {
+  const [name, setName] = useState(product.name || '');
+  const [url, setUrl] = useState(product.url || '');
+  const [categoryId, setCategoryId] = useState(product.category_id || '');
+  const [loading, setLoading] = useState(false);
+
+  const handleSave = async () => {
+    setLoading(true);
+    try {
+      const data = { name, url };
+      if (categoryId) data.category_id = parseInt(categoryId);
+      else data.category_id = null;
+      await updateProduct(product.id, data);
+      toast.success('Producto actualizado');
+      onSaved();
+    } catch(e) {
+      toast.error('Error al actualizar: ' + e.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <div className="fixed inset-0 z-[110] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-fade-in">
+      <div className="bg-surface-900 border border-surface-700 w-full max-w-md rounded-2xl shadow-2xl overflow-hidden">
+        <div className="px-6 py-4 flex items-center justify-between border-b border-surface-700/50 bg-surface-800/30">
+          <div className="flex items-center gap-3">
+             <div className="w-8 h-8 rounded-lg bg-brand-500/10 flex items-center justify-center text-brand-400">
+               <Edit3 size={18} />
+             </div>
+             <h2 className="text-sm font-bold text-white">Editar Producto</h2>
+          </div>
+          <button onClick={onClose} className="text-surface-400 hover:text-white"><X size={20}/></button>
+        </div>
+        <div className="p-6 space-y-4">
+          <div>
+            <label className="text-xs text-surface-400 font-semibold mb-1 block">Nombre</label>
+            <input type="text" value={name} onChange={e=>setName(e.target.value)} className="w-full bg-surface-950 border border-surface-700 rounded-lg px-3 py-2 text-sm text-white focus:border-brand-500 outline-none" />
+          </div>
+          <div>
+            <label className="text-xs text-surface-400 font-semibold mb-1 block">URL</label>
+            <input type="text" value={url} onChange={e=>setUrl(e.target.value)} className="w-full bg-surface-950 border border-surface-700 rounded-lg px-3 py-2 text-sm text-white focus:border-brand-500 outline-none" />
+          </div>
+          <div>
+            <label className="text-xs text-surface-400 font-semibold mb-1 block">Categoría (Opcional)</label>
+            <select value={categoryId} onChange={e=>setCategoryId(e.target.value)} className="w-full bg-surface-950 border border-surface-700 rounded-lg px-3 py-2 text-sm text-white focus:border-brand-500 outline-none">
+               <option value="">Sin categoría</option>
+               {categories.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+            </select>
+          </div>
+          <button onClick={handleSave} disabled={loading} className="w-full bg-brand-500 hover:bg-brand-600 text-white font-bold py-2 rounded-lg mt-4 disabled:opacity-50">Guardar Cambios</button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function ProductAnalyticsModal({ product, onClose }) {
+  const [history, setHistory] = useState([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    fetchProductHistory(product.id).then(res => {
+      setHistory(Array.isArray(res) ? res : res.history || []);
+      setLoading(false);
+    }).catch(e => {
+      toast.error("Error analiticas: " + e.message);
+      setLoading(false);
+    });
+  }, [product.id]);
+
+  return (
+    <div className="fixed inset-0 z-[110] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-fade-in">
+      <div className="bg-surface-900 border border-surface-700 w-full max-w-2xl rounded-2xl shadow-2xl flex flex-col max-h-[90vh]">
+        <div className="px-6 py-4 flex items-center justify-between border-b border-surface-700/50 bg-surface-800/30">
+          <div className="flex items-center gap-3">
+             <div className="w-8 h-8 rounded-lg bg-purple-500/10 flex items-center justify-center text-purple-400">
+               <BarChart size={18} />
+             </div>
+             <div>
+               <h2 className="text-sm font-bold text-white">Analíticas de Producto</h2>
+               <div className="text-xs text-surface-400">{product.name}</div>
+             </div>
+          </div>
+          <button onClick={onClose} className="text-surface-400 hover:text-white"><X size={20}/></button>
+        </div>
+        <div className="p-6 overflow-y-auto w-full custom-scrollbar">
+           {loading ? <div className="text-center py-10 opacity-50"><div className="animate-spin w-6 h-6 border-2 border-brand-500 border-t-transparent rounded-full mx-auto mb-2"/>Cargando...</div> :
+            <div className="space-y-4">
+               {history.length === 0 ? <p className="text-center text-surface-400 py-10">No hay datos históricos suficientes.</p> :
+                 <div className="bg-surface-950 p-4 rounded-xl border border-surface-800">
+                    <h3 className="text-xs font-bold text-surface-400 mb-3 uppercase tracking-wider">Histórico de Stock Reciente</h3>
+                    <div className="space-y-2">
+                       {history.map(row => (
+                         <div key={row.id} className="flex justify-between items-center text-xs p-2 bg-surface-900 rounded border border-surface-800">
+                           <span className="text-surface-400">{new Date(row.timestamp || row.created_at).toLocaleString()}</span>
+                           <div className="flex gap-4">
+                              <span className="text-emerald-400 font-bold">{row.warehouse_stock}U Físico</span>
+                              <span className="text-blue-400">{row.transit_stock}U Tránsito</span>
+                           </div>
+                         </div>
+                       ))}
+                    </div>
+                 </div>
+               }
+            </div>
+           }
+        </div>
+      </div>
+    </div>
+  );
+}
+
+
+function ProductItem({ product, i, onOpenModal, onOpenEdit, onOpenAnalytics, onDelete, onToggle, onCheckout }) {
   const statusConf = STATUS_CONFIG[product.status] || STATUS_CONFIG.monitoring;
   const StatusIcon = statusConf.icon;
   const totalStock = (product.warehouse_stock || 0) + (product.transit_stock || 0);
@@ -449,6 +564,13 @@ function ProductItem({ product, i, onOpenModal, onDelete, onToggle, onCheckout }
                                   font-medium border ${statusConf.color}`}>
                   <StatusIcon size={10} />
                   {statusConf.label}
+                </span>
+              )}
+
+              {/* Categoría */}
+              {product.category && (
+                <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] bg-surface-800 border border-surface-700/60 text-surface-400 font-semibold uppercase tracking-wider">
+                  {product.category.name}
                 </span>
               )}
             </div>
@@ -500,10 +622,9 @@ function ProductItem({ product, i, onOpenModal, onDelete, onToggle, onCheckout }
                   )}
 
                   {/* Stock type badge */}
-                  {product.stock_type_label && (
-                    <span className={`px-1.5 py-0.5 rounded text-[10px] font-medium
-                      ${STOCK_TYPE_STYLES[product.stock_type_label] || 'bg-surface-700/50 text-surface-200/40'}`}>
-                      {product.stock_type_label}
+                  {totalStock === 0 && (
+                    <span className="px-1.5 py-0.5 rounded text-[10px] font-medium bg-surface-700/50 text-surface-200/40">
+                      Esperando producción
                     </span>
                   )}
 
@@ -526,6 +647,22 @@ function ProductItem({ product, i, onOpenModal, onDelete, onToggle, onCheckout }
 
           {/* Actions */}
           <div className="flex items-center gap-1 flex-shrink-0">
+            
+            <button
+              onClick={() => onOpenEdit(product)}
+              className="p-2 rounded-lg hover:bg-brand-500/10 hover:text-brand-400 transition-colors"
+              title="Editar Producto"
+            >
+              <Edit3 size={14} />
+            </button>
+            <button
+              onClick={() => onOpenAnalytics(product)}
+              className="p-2 rounded-lg hover:bg-purple-500/10 hover:text-purple-400 transition-colors"
+              title="Analíticas"
+            >
+              <BarChart size={14} />
+            </button>
+
             {product.status === 'purchasing' ? (
               <button
                 onClick={() => onOpenModal(product)}
@@ -569,6 +706,12 @@ function ProductItem({ product, i, onOpenModal, onDelete, onToggle, onCheckout }
 
 export default function ProductList({ products, loading, onDelete, onToggle, onCheckout, onAddBulk }) {
   const [selectedProduct, setSelectedProduct] = useState(null);
+  const [editingProduct, setEditingProduct] = useState(null);
+  const [analyticsProduct, setAnalyticsProduct] = useState(null);
+  const [categories, setCategories] = useState([]);
+  useEffect(()=>{
+    fetchCategories().then(setCategories).catch(()=>{});
+  }, []);
   const fileInputRef = useRef(null);
 
   if (loading) {
@@ -686,12 +829,22 @@ export default function ProductList({ products, loading, onDelete, onToggle, onC
             product={product}
             i={i}
             onOpenModal={setSelectedProduct}
+            onOpenEdit={setEditingProduct}
+            onOpenAnalytics={setAnalyticsProduct}
             onDelete={onDelete}
             onToggle={onToggle}
             onCheckout={onCheckout}
           />
         ))}
       </div>
+
+      
+      {editingProduct && (
+        <EditProductModal product={editingProduct} categories={categories} onClose={() => setEditingProduct(null)} onSaved={() => { setEditingProduct(null); window.dispatchEvent(new CustomEvent('refresh-products')); }} />
+      )}
+      {analyticsProduct && (
+        <ProductAnalyticsModal product={analyticsProduct} onClose={() => setAnalyticsProduct(null)} />
+      )}
 
       {selectedProduct && (
          <ProductSnipeModal 

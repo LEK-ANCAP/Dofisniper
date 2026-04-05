@@ -52,6 +52,11 @@ export default function App() {
     }
   }, [isAuthenticated, handleLogout]);
 
+    useEffect(() => {
+    window.addEventListener('refresh-products', loadData);
+    return () => window.removeEventListener('refresh-products', loadData);
+  }, [loadData]);
+  
   useEffect(() => {
     if (isAuthenticated) {
       loadData();

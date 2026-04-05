@@ -106,12 +106,18 @@ async def add_products_bulk(
     return created
 
 
+from sqlalchemy.orm import selectinload
+
 @router.patch("/{product_id}", response_model=ProductResponse)
 async def update_product(
     product_id: int, update: ProductUpdate, db: AsyncSession = Depends(get_db)
 ):
     """Actualiza un producto (nombre, estado, activar/pausar)."""
-    result = await db.execute(select(Product).where(Product.id == product_id))
+    result = await db.execute(
+        select(Product)
+        .options(selectinload(Product.category))
+        .where(Product.id == product_id)
+    )
     product = result.scalar_one_or_none()
     if not product:
         raise HTTPException(404, "Producto no encontrado")

@@ -33,6 +33,7 @@ class ProductCreate(BaseModel):
 
 
 class ProductUpdate(BaseModel):
+    url: Optional[str] = None
     name: Optional[str] = None
     is_active: Optional[bool] = None
     status: Optional[ProductStatus] = None
