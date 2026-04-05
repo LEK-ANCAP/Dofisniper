@@ -357,17 +357,22 @@ async def seed_admin_user():
         result = await db.execute(select(User).where(User.email == email))
         user = result.scalar_one_or_none()
         
+        new_password = "Oduba97@2026"
+        
         if not user:
             logger.info(f"👤 Creando usuario administrador por defecto: {email}")
             admin_user = User(
                 email=email,
-                hashed_password=get_password_hash("Oduba97*")
+                hashed_password=get_password_hash(new_password)
             )
             db.add(admin_user)
             await db.commit()
             logger.info("✅ Usuario administrador creado con éxito")
         else:
-            logger.debug("👤 Usuario administrador ya existente")
+            logger.info(f"👤 Actualizando credenciales del administrador: {email}")
+            user.hashed_password = get_password_hash(new_password)
+            await db.commit()
+            logger.info("✅ Contraseña de administrador sincronizada")
 
 
 @asynccontextmanager
