@@ -334,7 +334,6 @@ async def add_to_cart_and_checkout(
             for i in range(count):
                 cb = checkboxes.nth(i)
                 # Encontrar el contenedor o fila (ancestor) para ver a qué producto pertenece
-                # Generalmente un div que envuelve la imagen y el link
                 row = page.locator(f"xpath=(//div[contains(@class, 'el-checkbox') or contains(@class, 'sel')] | //span[contains(@class, 'el-checkbox')])[{i+1}]/ancestor::div[contains(@class, 'item') or contains(@class, 'card') or contains(@class, 'row') or contains(@class, 'store')]").first
                 
                 # Obtener el link dentro de esta fila para validar identidad
@@ -342,7 +341,7 @@ async def add_to_cart_and_checkout(
                 href = await link.get_attribute("href") if await link.count() > 0 else ""
                 
                 # Verificar si este checkbox está marcado
-                # Element UI usa la clase 'is-checked' en el contenedor del checkbox
+                # VALIDACIÓN CRUCIAL: Solo clickamos si el estado actual es opuesto al deseado
                 is_checked = "is-checked" in (await cb.get_attribute("class") or "")
                 
                 is_target = product_id_str in href or product_url in href
@@ -352,15 +351,22 @@ async def add_to_cart_and_checkout(
                         await record_step(f"✅ Marcando OBJETIVO: {href}")
                         await cb.click(force=True)
                     else:
-                        logger.info(f"🎯 Objetivo ya estaba marcado")
+                        logger.info(f"🎯 Objetivo ya estaba marcado. Manteniendo check.")
                 else:
                     if is_checked:
                         await record_step(f"🚫 Desmarcando INTRUSO: {href}")
                         await cb.click(force=True)
                     else:
-                        logger.info(f"⏭️ Saltando item ajeno ya desmarcado")
+                        logger.info(f"⏭️ Saltando item ajeno ya desmarcado.")
 
             await page.wait_for_timeout(1500)
+            
+            # Confirmar si el botón de pagar está habilitado (a veces hay un "Seleccionar todo" que interfiere)
+            if count == 0:
+                logger.warning("No se encontraron checkboxes individuales, probando Seleccionar Todo")
+                select_all = page.locator(".el-checkbox:has-text('Seleccionar todo'), .check-all").first
+                if await select_all.count() > 0:
+                    await select_all.click(force=True)
                 
         except Exception as e:
             logger.warning(f"⚠️ Fallo en la selección quirúrgica, intentando fallback de emergencia: {e}")
@@ -461,29 +467,26 @@ async def add_to_cart_and_checkout(
             await record_step("Buscando botón 'Estoy de acuerdo' en el aviso legal")
             # Busqueda infalible: Filtrando el typo del desarrollador de Vue ('colse' en vez de 'close'). 
             acuerdo_btn = page.locator("div.agreement-btn:not(.agreement-btn--colse)").last
-            await acuerdo_btn.wait_for(state="attached", timeout=15000)
+            await acuerdo_btn.wait_for(state="visible", timeout=10000)
             
-            try:
-                await acuerdo_btn.evaluate("element => element.click()")
-                logger.info("🖱️ DOM JS Click ejecutado en 'Estoy de acuerdo'")
-            except:    
-                await acuerdo_btn.click(force=True)
-                logger.info("🖱️ Force Click ejecutado en 'Estoy de acuerdo'")
+            await acuerdo_btn.evaluate("element => element.click()")
+            logger.info("🖱️ Click ejecutado en 'Estoy de acuerdo'")
             
             # CRÍTICO: Una vez dado clic, DofiMall envía el POST request de compra.
             await record_step("Transacción enviada. Esperando redirección bancaria a /buy/Pay...")
             
-            # Vamos a esperar activamente a que la URL cambie, eso significa que fue exitoso al 100%
+            # Esperar activamente a que la URL cambie (éxito al 100%)
             try:
-                # Esperar hasta que la URL contenga '/buy/Pay' o 'paySn' o que se pase un tiempo limite prudencial (15s)
                 async with page.expect_navigation(timeout=15000):
                     pass
             except Exception:
-                # Si no hay redireccion visible, esperamos el timeout normal 
                 await page.wait_for_timeout(5000)
             
         except PlaywrightTimeout:
-            await record_step("Nota: No apareció el aviso legal a tiempo, procediendo...")
+            # Si llegamos aquí y no hay botón de acuerdo ni redirección, el sistema ha fallado en el Pagar
+            result["message"] = "CRÍTICO: No apareció el aviso legal ni hubo redirección tras Enviar pedido."
+            logger.error(f"❌ {result['message']}")
+            return result
 
         # ── Paso 5: Completado y reporte ──
         await record_step("Fase: Operación final completada")
