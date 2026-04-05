@@ -13,42 +13,47 @@ jobs:
     - name: Checkout code
       uses: actions/checkout@v3
 
-    - name: Transfer Project Files to VPS
-      uses: appleboy/scp-action@v0.1.7
+    - name: Crear Tarball del Proyecto
+      run: |
+        tar -czvf deploy.tar.gz \
+          --exclude='.git' \
+          --exclude='.github' \
+          --exclude='venv' \
+          --exclude='.venv' \
+          --exclude='__pycache__' \
+          --exclude='backend/browser_data' \
+          --exclude='backend/logs' \
+          --exclude='*.db' \
+          --exclude='*.log' \
+          --exclude='frontend/node_modules' \
+          --exclude='frontend/dist' \
+          .
+
+    - name: Transferir Tarball al VPS
+      uses: appleboy/scp-action@master
       with:
         host: ${{ secrets.VPS_HOST }}
         username: ${{ secrets.VPS_USER }}
         password: ${{ secrets.VPS_PASSWORD }}
         port: 22
-        source: "."
-        target: "/root/dofimall-sniper"
-        rm: false
-        # Ignore virtual environments, git data, generated database, node_modules, and cache
-        exclude: |
-          .git/
-          .github/
-          venv/
-          .venv/
-          __pycache__/
-          backend/browser_data/
-          backend/logs/
-          backend/*.db
-          backend/*.log
-          frontend/node_modules/
-          frontend/dist/
-          deploy.py
-          deploy.zip
+        source: "deploy.tar.gz"
+        target: "/root"
 
-    - name: Rebuild and Restart Docker Containers
-      uses: appleboy/ssh-action@v1.0.3
+    - name: Extraer y Reiniciar Docker Containers
+      uses: appleboy/ssh-action@master
       with:
         host: ${{ secrets.VPS_HOST }}
         username: ${{ secrets.VPS_USER }}
         password: ${{ secrets.VPS_PASSWORD }}
         port: 22
         script: |
-          # Ensure Docker and Compose are installed (skip if already installed)
-          apt-get update && apt-get install -y docker.io docker-compose unzip
+          # Asegurar dependencias del sistema
+          apt-get update && apt-get install -y docker.io docker-compose tar
+          
+          # Mover y descomprimir
+          mkdir -p /root/dofimall-sniper
+          tar -xzvf /root/deploy.tar.gz -C /root/dofimall-sniper
+          rm /root/deploy.tar.gz
           
           # Navigate to project directory
           cd /root/dofimall-sniper
