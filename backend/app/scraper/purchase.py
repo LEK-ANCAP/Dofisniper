@@ -315,29 +315,61 @@ async def add_to_cart_and_checkout(
         # ── Paso 3: Seleccionar productos y hacer checkout ──
         await record_step("Fase: Verificación de items y Checkout")
 
-        # Intentar seleccionar todos los items del carrito
+        # ── Paso 3: Selección Inteligente (Solo el producto objetivo) ──
+        await record_step("Fase: Selección Quirúrgica del item (Solo Objetivo)")
+
         try:
-            await record_step("Buscando casilla 'Seleccionar Todo' en el carrito")
-            
-            # 1. Intentar hacer click directamente en el texto mediante selector agnóstico
-            select_text = page.get_by_text("Seleccionar todo", exact=False).first
-            if await select_text.count() > 0:
-                await record_step("Marcando 'Seleccionar todo' desde el texto")
-                await select_text.click(force=True)
-                await page.wait_for_timeout(1000)
-            
-            # 2. Si el carrito exige hacer check por tienda, lo forzamos clickeando cada img.store_sel
-            store_checks = page.locator("img.store_sel")
-            stores_count = await store_checks.count()
-            if stores_count > 0:
-                await record_step(f"Forzando selección individual de {stores_count} tienda(s)")
-                for i in range(stores_count):
-                    await store_checks.nth(i).click(force=True)
-                await page.wait_for_timeout(1500)
+            # 1. Identificar el identificador único del producto (ID de la URL)
+            # Ej: https://www.dofimall.com/product/12345 -> '12345'
+            product_id_str = product_url.rstrip('/').split('/')[-1]
+            logger.info(f"🎯 Identificador del objetivo: {product_id_str}")
+
+            # 2. Localizar todas las filas de productos en el carrito
+            # DofiMall suele usar .cart-item o estructuras con el-checkbox
+            # Buscaremos cada checkbox y su contexto
+            checkboxes = page.locator(".el-checkbox, .store_sel, .item_sel, .check-box")
+            count = await checkboxes.count()
+            logger.info(f"🛒 Encontrados {count} elementos de selección en el carrito")
+
+            for i in range(count):
+                cb = checkboxes.nth(i)
+                # Encontrar el contenedor o fila (ancestor) para ver a qué producto pertenece
+                # Generalmente un div que envuelve la imagen y el link
+                row = page.locator(f"xpath=(//div[contains(@class, 'el-checkbox') or contains(@class, 'sel')] | //span[contains(@class, 'el-checkbox')])[{i+1}]/ancestor::div[contains(@class, 'item') or contains(@class, 'card') or contains(@class, 'row') or contains(@class, 'store')]").first
+                
+                # Obtener el link dentro de esta fila para validar identidad
+                link = row.locator("a[href*='product']").first
+                href = await link.get_attribute("href") if await link.count() > 0 else ""
+                
+                # Verificar si este checkbox está marcado
+                # Element UI usa la clase 'is-checked' en el contenedor del checkbox
+                is_checked = "is-checked" in (await cb.get_attribute("class") or "")
+                
+                is_target = product_id_str in href or product_url in href
+
+                if is_target:
+                    if not is_checked:
+                        await record_step(f"✅ Marcando OBJETIVO: {href}")
+                        await cb.click(force=True)
+                    else:
+                        logger.info(f"🎯 Objetivo ya estaba marcado")
+                else:
+                    if is_checked:
+                        await record_step(f"🚫 Desmarcando INTRUSO: {href}")
+                        await cb.click(force=True)
+                    else:
+                        logger.info(f"⏭️ Saltando item ajeno ya desmarcado")
+
+            await page.wait_for_timeout(1500)
                 
         except Exception as e:
-            logger.warning(f"No se pudo forzar la selección interactiva: {e}")
-            pass 
+            logger.warning(f"⚠️ Fallo en la selección quirúrgica, intentando fallback de emergencia: {e}")
+            # Fallback: intentar al menos que el botón de pagar esté habilitado
+            try:
+                select_all = page.get_by_text("Seleccionar todo", exact=False).first
+                if await select_all.count() > 0:
+                    await select_all.click(force=True)
+            except: pass 
 
         # ── Ajustar Cantidad Exacta dentro del carrito ──
         if target_quantity > 1:
