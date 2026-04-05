@@ -362,8 +362,8 @@ async def add_to_cart_and_checkout(
         # Click en botón de pagar/checkout
         await record_step("Escaneando el DOM buscando el botón final de PAGO (Checkout)")
         try:
-            # Buscar el botón principal del carrito goBuy u otro contenedor de texto
-            checkout_locator = page.locator(".goBuy, .cart-submit, .submit-btn, .cart-pay, button:has-text('Pagar'), div.goBuy").first
+            # Buscar el botón principal del carrito go_buy (tomado de la captura de DevTools)
+            checkout_locator = page.locator(".go_buy, .go_submit, .goBuy, .cart-submit, button:has-text('Pagar')").first
             await checkout_locator.wait_for(state="attached", timeout=5000)
             checkout_btn = checkout_locator
             await record_step("Botón de Pagar detectado y visible.")
@@ -392,12 +392,15 @@ async def add_to_cart_and_checkout(
             
         await record_step("Presionando Confirmar y Pagar ('Checkout')")
         try:
-            # Ejecutar raw click vía Javascript para saltar overlays transparentes en Vue
-            await checkout_btn.evaluate("element => element.click()")
-            logger.info("🖱️ DOM JS Click ejecutado sobre 'Pagar'")
+            # Ejecutar scroll hacia el botón por si está fuera de pantalla
+            await checkout_btn.scroll_into_view_if_needed()
+            # Probar click normal de Playwright (genera todos los eventos de Vue)
+            await checkout_btn.click(force=True, timeout=5000)
+            logger.info("🖱️ Mouse Click nativo sobre 'Pagar'")
         except Exception as e:
-            await checkout_btn.click(force=True)
-            logger.info("🖱️ Force Click nativo en 'Pagar'")
+            # Fallback a JS click
+            await checkout_btn.evaluate("element => element.click()")
+            logger.info("🖱️ Fallback JS Click en 'Pagar'")
         
         # Esperamos explícitamente a que Vue monte la nueva pantalla (en lugar del timeout fijo, monitoreamos DOM)
         await page.wait_for_timeout(4000)
