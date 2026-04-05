@@ -76,5 +76,8 @@ export const fetchSettings = () => request('/settings');
 export const updateSettings = (data) =>
   request('/settings', { method: 'PATCH', body: JSON.stringify(data) });
 
+export const forceLogout = () =>
+  request('/settings/logout', { method: 'POST' });
+
 // Analytics
 export const fetchProductAnalytics = (id) => request(`/analytics/product/${id}`);
