@@ -101,3 +101,25 @@ class AppSettingsUpdate(BaseModel):
     dofimall_email: Optional[str] = None
     dofimall_password: Optional[str] = None
     keep_alive_enabled: Optional[bool] = None
+
+
+# --- Authentication ---
+
+class UserLogin(BaseModel):
+    email: str
+    password: str
+
+
+class Token(BaseModel):
+    access_token: str
+    token_type: str
+
+
+class UserResponse(BaseModel):
+    id: int
+    email: str
+    is_active: bool
+    created_at: datetime
+
+    class Config:
+        from_attributes = True

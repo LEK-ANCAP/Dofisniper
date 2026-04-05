@@ -84,3 +84,13 @@ class AppSettings(Base):
     dofimall_password = Column(String(255), nullable=True)
     keep_alive_enabled = Column(Boolean, default=False)
     updated_at = Column(DateTime, server_default=func.now(), onupdate=func.now())
+
+
+class User(Base):
+    __tablename__ = "users"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    email = Column(String(255), unique=True, index=True, nullable=False)
+    hashed_password = Column(String(255), nullable=False)
+    is_active = Column(Boolean, default=True)
+    created_at = Column(DateTime, server_default=func.now())

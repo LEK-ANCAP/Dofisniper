@@ -28,6 +28,7 @@ from app.schemas.schemas import DashboardStats
 from app.api.products import router as products_router
 from app.api.logs import router as logs_router
 from app.api.settings import router as settings_router
+from app.api.analytics import router as analytics_router
 from app.scraper.monitor import check_stock
 from app.scraper.browser import browser_manager
 from app.scraper.purchase import add_to_cart_and_checkout
@@ -413,6 +414,7 @@ app.add_middleware(
 app.include_router(products_router, prefix="/api")
 app.include_router(logs_router, prefix="/api")
 app.include_router(settings_router, prefix="/api")
+app.include_router(analytics_router, prefix="/api")
 
 
 @app.get("/api/dashboard", response_model=DashboardStats)

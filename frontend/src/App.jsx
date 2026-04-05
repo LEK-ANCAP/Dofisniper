@@ -6,12 +6,13 @@ import AddProductForm from './components/AddProductForm';
 import LogsPanel from './components/LogsPanel';
 import CountdownTimer from './components/CountdownTimer';
 import ConfigPanel from './components/ConfigPanel';
+import AnalyticsPanel from './components/AnalyticsPanel';
 import {
   fetchDashboard, fetchProducts, fetchLogs,
   addProduct, addProductsBulk, deleteProduct,
   toggleProduct, triggerCheckNow, manualCheckout, clearLogs
 } from './utils/api';
-import { Crosshair, RefreshCw, Activity, Settings } from 'lucide-react';
+import { Crosshair, RefreshCw, Activity, Settings, BarChart2 } from 'lucide-react';
 
 export default function App() {
   const [stats, setStats] = useState(null);
@@ -173,6 +174,7 @@ export default function App() {
         <div className="flex gap-1 overflow-x-auto bg-surface-800/50 rounded-lg p-1 w-full sm:w-fit">
           {[
             { key: 'products', label: 'Productos', icon: Crosshair },
+            { key: 'analytics', label: 'Analíticas', icon: BarChart2 },
             { key: 'logs', label: 'Actividad', icon: Activity },
             { key: 'config', label: 'Configuración', icon: Settings },
           ].map(({ key, label, icon: Icon }) => (
@@ -201,6 +203,8 @@ export default function App() {
             onCheckout={handleCheckout}
             onAddBulk={handleAddBulk}
           />
+        ) : tab === 'analytics' ? (
+          <AnalyticsPanel />
         ) : tab === 'logs' ? (
           <LogsPanel logs={logs} onRefresh={loadData} onClear={async () => {
             try {
