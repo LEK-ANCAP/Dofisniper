@@ -336,15 +336,19 @@ async def add_to_cart_and_checkout(
                 # Encontrar el contenedor o fila (ancestor) para ver a qué producto pertenece
                 row = page.locator(f"xpath=(//div[contains(@class, 'el-checkbox') or contains(@class, 'sel')] | //span[contains(@class, 'el-checkbox')])[{i+1}]/ancestor::div[contains(@class, 'item') or contains(@class, 'card') or contains(@class, 'row') or contains(@class, 'store')]").first
                 
-                # Obtener el link dentro de esta fila para validar identidad
-                link = row.locator("a[href*='product']").first
+                # En DofiMall los links de productos son '/goods/detail', no solo 'product'
+                link = row.locator("a[href*='goods'], a[href*='detail'], a[href*='product']").first
                 href = await link.get_attribute("href") if await link.count() > 0 else ""
                 
-                # Verificar si este checkbox está marcado
-                # VALIDACIÓN CRUCIAL: Solo clickamos si el estado actual es opuesto al deseado
-                is_checked = "is-checked" in (await cb.get_attribute("class") or "")
+                # VALIDACIÓN CRUCIAL: Es más seguro evaluar clases hijas e inputs internos en Vue
+                is_checked = await cb.evaluate("el => el.checked || el.classList.contains('is-checked') || el.classList.contains('checked') || !!el.querySelector('.is-checked, .checked, input[type=\"checkbox\"]:checked')")
                 
-                is_target = product_id_str in href or product_url in href
+                import re
+                pid_match = re.search(r'productId=(\d+)', product_url)
+                extracted_pid = pid_match.group(1) if pid_match else product_id_str
+                
+                # Verificamos si encontramos el ID (ej: 200003580913) en el enlace
+                is_target = extracted_pid in href or product_url in href
 
                 if is_target:
                     if not is_checked:
