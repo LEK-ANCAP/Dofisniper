@@ -9,32 +9,39 @@ if ! command -v docker &> /dev/null; then
     sh get-docker.sh
 fi
 
-echo "Clonando repositorio..."
-rm -rf Dofisniper
-git clone https://github.com/LEK-ANCAP/Dofisniper.git
-cd Dofisniper
+if [ -d "Dofisniper" ]; then
+    echo "Sincronizando cambios en repositorio existente..."
+    cd Dofisniper
+    git pull origin main
+else
+    echo "Clonando repositorio por primera vez..."
+    git clone https://github.com/LEK-ANCAP/Dofisniper.git
+    cd Dofisniper
+fi
 
-echo "Generando Variables de Entorno Seguras..."
-cat << 'EOF' > backend/.env
+if [ ! -f "backend/.env" ]; then
+    echo "Generando Variables de Entorno Seguras..."
+    cat << 'EOF' > backend/.env
 # DofiMall Sniper - Configuration
+# --- RELLENA ESTO SI ES LA PRIMERA VEZ ---
 DOFIMALL_EMAIL=tu_email@ejemplo.com
 DOFIMALL_PASSWORD=tu_password
 DOFIMALL_BASE_URL=https://www.dofimall.com
 CHECK_INTERVAL_MINUTES=1
+CHECK_INTERVAL_SECONDS=5
 HEADLESS=true
 SMTP_HOST=smtp.gmail.com
 SMTP_PORT=587
 SMTP_USER=tu_email@gmail.com
 SMTP_PASSWORD=app_password_aqui
 NOTIFICATION_EMAIL=destino@ejemplo.com
-WHATSAPP_TOKEN=
-WHATSAPP_PHONE_ID=
-WHATSAPP_TO=
-TELEGRAM_BOT_TOKEN=7116305339:AAGcADNtikyz6hHCOaptDd_xn-xeKpw7fDI
-TELEGRAM_CHAT_ID=8003584484,764259295
-SECRET_KEY=cambiar-por-clave-segura-larga
+SECRET_KEY=clave-generada-$(date +%s)
 DATABASE_URL=sqlite+aiosqlite:///./dofimall_sniper.db
 EOF
+    echo "⚠️  .env base creado. Recuerda editarlo con tus credenciales reales."
+else
+    echo "✅ .env existente detectado. Manteniendo configuración actual."
+fi
 
 echo "Levantando la flota completa (Backend + Frontend + Base de Datos)..."
 # Usar el plugin moderno 'docker compose' o el binario antiguo según disponibilidad
