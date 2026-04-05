@@ -182,6 +182,12 @@ async def _parse_api_response_all_warehouses(
         image_url = goods_pics[0]
     if not image_url:
         image_url = detail.get("shareImage")
+        
+    if image_url:
+        if image_url.startswith("//"):
+            image_url = "https:" + image_url
+        elif image_url.startswith("http://"):
+            image_url = image_url.replace("http://", "https://")
 
     price = None
     product_price = default_product.get("productPrice")
