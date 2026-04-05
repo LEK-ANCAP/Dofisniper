@@ -23,15 +23,15 @@ from loguru import logger
 
 from app.core.config import get_settings
 from app.core.database import init_db, get_db, async_session
-from app.models.models import Product, ActionLog, ProductStatus, LogLevel, StockHistory, AppSettings
-from app.schemas.schemas import DashboardStats
+from app.scraper.browser import browser_manager
+from app.scraper.purchase import add_to_cart_and_checkout
+from app.api.auth import router as auth_router, get_current_user, get_password_hash
+from app.models.models import Product, ActionLog, ProductStatus, LogLevel, StockHistory, AppSettings, User
 from app.api.products import router as products_router
 from app.api.logs import router as logs_router
 from app.api.settings import router as settings_router
 from app.api.analytics import router as analytics_router
 from app.scraper.monitor import check_stock
-from app.scraper.browser import browser_manager
-from app.scraper.purchase import add_to_cart_and_checkout
 from pydantic import BaseModel
 from app.notifications.email_notif import send_email_notification
 from app.notifications.whatsapp import send_whatsapp_notification
@@ -349,10 +349,31 @@ async def run_keep_alive():
         logger.error(f"Error gestionando db en Keep-Alive: {e}")
 
 
+async def seed_admin_user():
+    """Crea el usuario administrador por defecto si no existe."""
+    async with async_session() as db:
+        email = "admin@odubasolar.com"
+        result = await db.execute(select(User).where(User.email == email))
+        user = result.scalar_one_or_none()
+        
+        if not user:
+            logger.info(f"👤 Creando usuario administrador por defecto: {email}")
+            admin_user = User(
+                email=email,
+                hashed_password=get_password_hash("Oduba97*")
+            )
+            db.add(admin_user)
+            await db.commit()
+            logger.info("✅ Usuario administrador creado con éxito")
+        else:
+            logger.debug("👤 Usuario administrador ya existente")
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     logger.info("🚀 Iniciando DofiMall Sniper...")
     await init_db()
+    await seed_admin_user()
     os.makedirs("logs", exist_ok=True)
     
     # Iniciar Browser Manager Persistente en una tarea de fondo
@@ -411,13 +432,17 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-app.include_router(products_router, prefix="/api")
-app.include_router(logs_router, prefix="/api")
-app.include_router(settings_router, prefix="/api")
-app.include_router(analytics_router, prefix="/api")
+# Authentication (Public)
+app.include_router(auth_router, prefix="/api")
+
+# Protected Routes
+app.include_router(products_router, prefix="/api", dependencies=[Depends(get_current_user)])
+app.include_router(logs_router, prefix="/api", dependencies=[Depends(get_current_user)])
+app.include_router(settings_router, prefix="/api", dependencies=[Depends(get_current_user)])
+app.include_router(analytics_router, prefix="/api", dependencies=[Depends(get_current_user)])
 
 
-@app.get("/api/dashboard", response_model=DashboardStats)
+@app.get("/api/dashboard", response_model=DashboardStats, dependencies=[Depends(get_current_user)])
 async def get_dashboard(db: AsyncSession = Depends(get_db)):
     """Estadísticas del dashboard."""
     products = await db.execute(select(Product))
@@ -448,7 +473,7 @@ async def get_dashboard(db: AsyncSession = Depends(get_db)):
     )
 
 
-@app.post("/api/check-now")
+@app.post("/api/check-now", dependencies=[Depends(get_current_user)])
 async def trigger_check_now():
     """Fuerza una comprobación inmediata."""
     scheduler.add_job(

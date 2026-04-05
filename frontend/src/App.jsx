@@ -10,9 +10,11 @@ import AnalyticsPanel from './components/AnalyticsPanel';
 import {
   fetchDashboard, fetchProducts, fetchLogs,
   addProduct, addProductsBulk, deleteProduct,
-  toggleProduct, triggerCheckNow, manualCheckout, clearLogs
+  toggleProduct, triggerCheckNow, manualCheckout, clearLogs,
+  fetchMe
 } from './utils/api';
-import { Crosshair, RefreshCw, Activity, Settings, BarChart2 } from 'lucide-react';
+import { Crosshair, RefreshCw, Activity, Settings, BarChart2, LogOut } from 'lucide-react';
+import LoginPage from './pages/LoginPage';
 
 export default function App() {
   const [stats, setStats] = useState(null);
@@ -21,8 +23,16 @@ export default function App() {
   const [loading, setLoading] = useState(true);
   const [checking, setChecking] = useState(false);
   const [tab, setTab] = useState('products');
+  const [isAuthenticated, setIsAuthenticated] = useState(!!localStorage.getItem('sniper_token'));
+
+  const handleLogout = useCallback(() => {
+    localStorage.removeItem('sniper_token');
+    setIsAuthenticated(false);
+    toast.success('Misión finalizada. Sesión cerrada.');
+  }, []);
 
   const loadData = useCallback(async () => {
+    if (!isAuthenticated) return;
     try {
       const [s, p, l] = await Promise.all([
         fetchDashboard(), fetchProducts(), fetchLogs(30)
@@ -32,16 +42,21 @@ export default function App() {
       setLogs(l);
     } catch (e) {
       console.error('Error cargando datos:', e);
+      if (e.message.includes('401') || e.message.includes('validar la sesión')) {
+        handleLogout();
+      }
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [isAuthenticated, handleLogout]);
 
   useEffect(() => {
-    loadData();
-    const interval = setInterval(loadData, 10000); // Refrescar cada 10s
-    return () => clearInterval(interval);
-  }, [loadData]);
+    if (isAuthenticated) {
+      loadData();
+      const interval = setInterval(loadData, 10000); 
+      return () => clearInterval(interval);
+    }
+  }, [loadData, isAuthenticated]);
 
   const handleAddProduct = async (url, name) => {
     try {
@@ -55,7 +70,6 @@ export default function App() {
 
   const handleAddBulk = async (items) => {
     try {
-      // items can be an array of strings (urls) or objects {url, name}
       const productsToAdd = items.map(item => {
         if (typeof item === 'string') return { url: item.trim() };
         return { url: item.url.trim(), name: item.name };
@@ -117,6 +131,20 @@ export default function App() {
     }
   };
 
+  if (!isAuthenticated) {
+    return (
+      <>
+        <Toaster
+          position="top-right"
+          toastOptions={{
+            style: { background: '#1e293b', color: '#e2e8f0', border: '1px solid #334155' },
+          }}
+        />
+        <LoginPage onLogin={() => setIsAuthenticated(true)} />
+      </>
+    );
+  }
+
   return (
     <div className="min-h-screen">
       <Toaster
@@ -134,16 +162,14 @@ export default function App() {
               <Crosshair size={22} className="text-white" />
             </div>
             <div>
-              <h1 className="text-lg font-bold tracking-tight text-white"
-                  style={{ fontFamily: 'var(--font-sans)' }}>
+              <h1 className="text-lg font-bold tracking-tight text-white">
                 DofiMall Sniper
               </h1>
-              <p className="text-xs text-surface-200/50">Monitor & Auto-Reserve</p>
+              <p className="text-xs text-surface-200/50 uppercase tracking-widest font-mono">Control Táctico de Suministros</p>
             </div>
           </div>
 
           <div className="flex items-center gap-4">
-            {/* Countdown timer */}
             <CountdownTimer
               nextCheck={stats?.next_check}
               interval={stats?.check_interval}
@@ -157,20 +183,28 @@ export default function App() {
                          text-white text-sm font-medium transition-all disabled:opacity-50"
             >
               <RefreshCw size={14} className={checking ? 'animate-spin' : ''} />
-              {checking ? 'Comprobando...' : 'Comprobar ahora'}
+              <span className="hidden sm:inline">{checking ? 'Sincronizando...' : 'Check de Stock'}</span>
+            </button>
+
+            <div className="h-6 w-px bg-white/10" />
+
+            <button
+              onClick={handleLogout}
+              className="flex items-center gap-2 px-3 py-2 rounded-lg bg-white/5 hover:bg-red-500/20
+                         text-surface-200 hover:text-red-400 text-xs font-medium transition-all border border-transparent hover:border-red-500/30"
+              title="Cerrar Misión"
+            >
+              <LogOut size={14} />
+              <span className="hidden sm:inline">Finalizar Misión</span>
             </button>
           </div>
         </div>
       </header>
 
       <main className="max-w-7xl mx-auto px-4 sm:px-6 py-6 space-y-6">
-        {/* Stats */}
         <StatsBar stats={stats} loading={loading} />
-
-        {/* Add product */}
         <AddProductForm onAdd={handleAddProduct} onAddBulk={handleAddBulk} />
 
-        {/* Tabs */}
         <div className="flex gap-1 overflow-x-auto bg-surface-800/50 rounded-lg p-1 w-full sm:w-fit">
           {[
             { key: 'products', label: 'Productos', icon: Crosshair },
@@ -183,7 +217,7 @@ export default function App() {
               onClick={() => setTab(key)}
               className={`flex items-center gap-2 px-4 py-2 rounded-md text-sm font-medium transition-all
                 ${tab === key
-                  ? 'bg-surface-700 text-white shadow-sm'
+                  ? 'bg-surface-700 text-white shadow-sm ring-1 ring-white/5'
                   : 'text-surface-200/60 hover:text-white'
                 }`}
             >
@@ -193,7 +227,6 @@ export default function App() {
           ))}
         </div>
 
-        {/* Content */}
         {tab === 'products' ? (
           <ProductList
             products={products}
