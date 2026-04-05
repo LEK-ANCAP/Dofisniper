@@ -52,14 +52,30 @@ const CustomTooltip = ({ active, payload, label }) => {
           </div>
         ) : (
           <div className="space-y-2">
-            <div className="flex justify-between items-center bg-surface-900/50 px-2 py-1 rounded">
-              <span className="text-surface-400 text-xs">Stock Global:</span>
-              <span className="text-emerald-400 font-mono font-bold">{data.total_stock}u</span>
+            <div className="flex px-2 py-1 items-center justify-between">
+              <span className="text-surface-400 text-xs">Stock Global Total:</span>
+              <span className="text-emerald-400 font-mono font-bold text-sm tracking-wide">{data.total_stock}u</span>
             </div>
+            
+            <div className="bg-surface-900/50 rounded p-2 border border-surface-700/30 space-y-1">
+              <div className="flex justify-between items-center">
+                <div className="flex items-center gap-1.5 border-l-2 border-brand-500 pl-1">
+                  <span className="text-surface-300 text-xs">En Almacén</span>
+                </div>
+                <span className="text-white font-mono font-semibold text-xs">{data.warehouse_stock}u</span>
+              </div>
+              <div className="flex justify-between items-center">
+                <div className="flex items-center gap-1.5 border-l-2 border-emerald-500 pl-1">
+                  <span className="text-surface-300 text-xs">En Tránsito (Gap)</span>
+                </div>
+                <span className="text-white font-mono font-semibold text-xs">{(data.transit_stock || 0)}u</span>
+              </div>
+            </div>
+
             {(data.volume_change !== 0 && data.volume_change !== undefined) && (
-              <div className="flex justify-between items-center px-2 py-1">
-                <span className="text-surface-400 text-xs">Ajuste/Volumen:</span>
-                <span className={`font-mono font-bold text-xs ${data.volume_change > 0 ? 'text-green-500' : 'text-red-400'}`}>
+              <div className="flex justify-between items-center px-2 py-1 mt-1 border-t border-surface-700/30">
+                <span className="text-surface-400 text-xs uppercase tracking-wider">Flujo:</span>
+                <span className={`font-mono font-bold text-xs px-1.5 py-0.5 rounded ${data.volume_change > 0 ? 'bg-green-500/10 text-green-400' : 'bg-red-500/10 text-red-400'}`}>
                   {data.volume_change > 0 ? '+' : ''}{data.volume_change}u
                 </span>
               </div>
@@ -108,23 +124,24 @@ export default function AnalyticsPanel() {
     const loadAnalytics = async () => {
       setLoading(true);
       try {
-        // Enviar también el periodo seleccionado
         const data = await fetchProductAnalytics(selectedProductId, period);
         
-        let lastStock = { total_stock: 0 };
+        let lastStock = { total_stock: 0, warehouse_stock: 0, transit_stock: 0 };
         
         const chartData = data.timeline.map((item) => {
           if (item.type === "stock") {
-            lastStock = { total_stock: item.total_stock };
+            lastStock = { 
+               total_stock: item.total_stock,
+               warehouse_stock: item.warehouse_stock || 0,
+               transit_stock: item.transit_stock || 0
+            };
             return {
               ...item,
               time: item.timestamp,
               is_event: false,
-              // Convertir volumen a positivo para la barra, independientemente de si es compra o restock
               chart_volume: item.volume_change ? Math.abs(item.volume_change) : 0
             };
           } else {
-             // Es un evento "huérfano" (ej: intento fallido)
             return {
               ...lastStock, 
               time: item.timestamp,
@@ -217,9 +234,10 @@ export default function AnalyticsPanel() {
       {analyticsData && analyticsData.chartData.length > 0 && (
         <>
           <div className="flex justify-end mb-2 px-4 gap-4 text-[10px] uppercase font-bold tracking-wider">
-             <span className="flex items-center gap-1 text-emerald-400"><div className="w-2 h-2 rounded bg-emerald-500"></div> Nivel Stock</span>
-             <span className="flex items-center gap-1 text-surface-500"><div className="w-2 h-2 rounded bg-surface-600"></div> Volumen (Cambio)</span>
-             <span className="flex items-center gap-1 text-brand-400"><Target size={12}/> Tus Compras</span>
+             <span className="flex items-center gap-1 text-emerald-400"><div className="w-2 h-2 rounded bg-emerald-500"></div> Total / Tránsito</span>
+             <span className="flex items-center gap-1 text-brand-500"><div className="w-2 h-2 rounded bg-brand-500"></div> Almacén Real</span>
+             <span className="flex items-center gap-1 text-surface-500"><div className="w-2 h-2 rounded bg-surface-600"></div> Volumen (Flujo)</span>
+             <span className="flex items-center gap-1 text-brand-400 ml-4"><Target size={12}/> Tus Compras</span>
              <span className="flex items-center gap-1 text-red-500"><TrendingDown size={12}/> Mercado</span>
           </div>
 
@@ -230,6 +248,10 @@ export default function AnalyticsPanel() {
                     <linearGradient id="colorTotal" x1="0" y1="0" x2="0" y2="1">
                       <stop offset="5%" stopColor="#10b981" stopOpacity={0.3}/>
                       <stop offset="95%" stopColor="#10b981" stopOpacity={0}/>
+                    </linearGradient>
+                    <linearGradient id="colorWarehouse" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="5%" stopColor="#0ea5e9" stopOpacity={0.4}/>
+                      <stop offset="95%" stopColor="#0ea5e9" stopOpacity={0}/>
                     </linearGradient>
                   </defs>
                   
@@ -289,9 +311,21 @@ export default function AnalyticsPanel() {
                       isAnimationActive={false}
                   />
 
-                  {/* Renderizar Eventos Inteligentes */}
+                  {/* Área Secundaria Inferior: Stock Real en Almacén */}
+                  <Area 
+                      yAxisId="left"
+                      type="stepAfter" 
+                      dataKey="warehouse_stock" 
+                      name="Stock Almacén" 
+                      stroke="#0ea5e9" 
+                      strokeWidth={2}
+                      fillOpacity={1} 
+                      fill="url(#colorWarehouse)" 
+                      isAnimationActive={false}
+                  />
+
+                  {/* Renderizar Eventos Inteligentes superpuestos sobre el stock total */}
                   {analyticsData.chartData.map((d, index) => {
-                     // Solo dibujar dots si es un evento real marcado por nuestra heurística
                      if (d.event_category === 'my_purchase') {
                         return (
                            <ReferenceDot 
