@@ -2,7 +2,7 @@ import { useState, useEffect, useRef } from 'react';
 import {
   Trash2, Pause, Play, ExternalLink, Clock,
   ShoppingCart, AlertTriangle, Eye, Package,
-  Warehouse, Truck, ChevronDown, ChevronUp, MapPin, Target, Zap, X, Terminal, Camera, Activity
+  Warehouse, Truck, ChevronDown, ChevronUp, MapPin, Target, Zap, X, Terminal, Camera, Activity, Download
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { updateProduct, manualCheckout, fetchLogs, fetchLiveView } from '../utils/api';
@@ -573,19 +573,48 @@ export default function ProductList({ products, loading, onDelete, onToggle, onC
     );
   }
 
+  const handleExport = () => {
+    const header = "Nombre,URL\n";
+    const lines = products.map(p => `"${(p.name || '').replace(/"/g, '""')}","${p.url}"`);
+    const csvContent = "data:text/csv;charset=utf-8," + header + lines.join("\n");
+    const encodedUri = encodeURI(csvContent);
+    const link = document.createElement("a");
+    link.setAttribute("href", encodedUri);
+    link.setAttribute("download", `dofimall-products-${new Date().toISOString().slice(0,10)}.csv`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
+
   return (
-    <div className="space-y-2">
-      {products.map((product, i) => (
-        <ProductItem 
-          key={product.id}
-          product={product}
-          i={i}
-          onOpenModal={setSelectedProduct}
-          onDelete={onDelete}
-          onToggle={onToggle}
-          onCheckout={onCheckout}
-        />
-      ))}
+    <div className="space-y-4">
+      {/* Header del panel de productos */}
+      <div className="flex justify-between items-center px-1">
+         <span className="text-xs font-semibold text-surface-400 uppercase tracking-widest">
+            {products.length} Objetivos
+         </span>
+         <button 
+           onClick={handleExport} 
+           className="flex items-center gap-2 text-xs font-medium text-brand-400 hover:text-brand-300 transition-colors bg-brand-500/10 hover:bg-brand-500/20 px-3 py-1.5 rounded-lg border border-brand-500/20 shadow-sm"
+           title="Exportar inventario a CSV"
+         >
+            <Download size={14} /> Exportar CSV
+         </button>
+      </div>
+
+      <div className="space-y-2">
+        {products.map((product, i) => (
+          <ProductItem 
+            key={product.id}
+            product={product}
+            i={i}
+            onOpenModal={setSelectedProduct}
+            onDelete={onDelete}
+            onToggle={onToggle}
+            onCheckout={onCheckout}
+          />
+        ))}
+      </div>
 
       {selectedProduct && (
          <ProductSnipeModal 
