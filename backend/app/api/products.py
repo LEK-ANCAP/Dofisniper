@@ -11,6 +11,8 @@ from app.scraper.browser import browser_manager
 from app.scraper.purchase import add_to_cart_and_checkout
 from app.scraper.live_view import live_view_manager
 from app.notifications.telegram import send_telegram_notification
+import aiohttp
+from fastapi.responses import StreamingResponse
 
 router = APIRouter(prefix="/products", tags=["products"])
 
@@ -27,6 +29,30 @@ async def get_products(
     result = await db.execute(query)
     return result.scalars().all()
 
+
+@router.get("/image-proxy")
+async def proxy_image(url: str):
+    """Proxy de imágenes de DofiMall para evadir Mixed Content y errores SSL."""
+    async def fetch_and_stream():
+        # Dofimall a veces falla con HTTPS o rechaza requests sin User-Agent
+        fetch_url = url.replace("https://", "http://") if "shopin.net" in url else url
+        
+        async with aiohttp.ClientSession() as session:
+            try:
+                # Permisivo con SSL por si el CDN de Dofimall tiene certificados inválidos
+                async with session.get(
+                    fetch_url, 
+                    ssl=False, 
+                    headers={"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)"}
+                ) as response:
+                    # En Stream chunks
+                    async for chunk in response.content.iter_chunked(8192):
+                        yield chunk
+            except Exception as e:
+                # Si falla, simplemente rinde nada
+                pass
+
+    return StreamingResponse(fetch_and_stream(), media_type="image/jpeg")
 
 @router.post("/", response_model=ProductResponse, status_code=201)
 async def add_product(product: ProductCreate, db: AsyncSession = Depends(get_db)):
