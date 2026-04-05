@@ -6,12 +6,12 @@ import AddProductForm from './components/AddProductForm';
 import LogsPanel from './components/LogsPanel';
 import CountdownTimer from './components/CountdownTimer';
 import ConfigPanel from './components/ConfigPanel';
-import AnalyticsPanel from './components/AnalyticsPanel';
+import IntelligenceDashboard from './components/IntelligenceDashboard';
 import {
   fetchDashboard, fetchProducts, fetchLogs,
   addProduct, addProductsBulk, deleteProduct,
   toggleProduct, triggerCheckNow, manualCheckout, clearLogs,
-  fetchMe
+  fetchMe, fetchCategories
 } from './utils/api';
 import { Crosshair, RefreshCw, Activity, Settings, BarChart2, LogOut } from 'lucide-react';
 import LoginPage from './pages/LoginPage';
@@ -20,6 +20,7 @@ export default function App() {
   const [stats, setStats] = useState(null);
   const [products, setProducts] = useState([]);
   const [logs, setLogs] = useState([]);
+  const [categories, setCategories] = useState([]);
   const [loading, setLoading] = useState(true);
   const [checking, setChecking] = useState(false);
   const [tab, setTab] = useState('products');
@@ -34,12 +35,13 @@ export default function App() {
   const loadData = useCallback(async () => {
     if (!isAuthenticated) return;
     try {
-      const [s, p, l] = await Promise.all([
-        fetchDashboard(), fetchProducts(), fetchLogs(30)
+      const [s, p, l, c] = await Promise.all([
+        fetchDashboard(), fetchProducts(), fetchLogs(30), fetchCategories()
       ]);
       setStats(s);
       setProducts(p);
       setLogs(l);
+      setCategories(c);
     } catch (e) {
       console.error('Error cargando datos:', e);
       if (e.message.includes('401') || e.message.includes('validar la sesión')) {
@@ -58,9 +60,9 @@ export default function App() {
     }
   }, [loadData, isAuthenticated]);
 
-  const handleAddProduct = async (url, name) => {
+  const handleAddProduct = async (url, name, category_id) => {
     try {
-      await addProduct({ url, name: name || undefined });
+      await addProduct({ url, name: name || undefined, category_id });
       toast.success('Producto añadido');
       await loadData();
     } catch (e) {
@@ -71,8 +73,8 @@ export default function App() {
   const handleAddBulk = async (items) => {
     try {
       const productsToAdd = items.map(item => {
-        if (typeof item === 'string') return { url: item.trim() };
-        return { url: item.url.trim(), name: item.name };
+        if (typeof item === 'string') return { url: item.trim(), category_id: items.category_id }; 
+        return { url: item.url.trim(), name: item.name, category_id: items.category_id };
       });
       await addProductsBulk(productsToAdd);
       toast.success(`${productsToAdd.length} productos añadidos`);
@@ -203,7 +205,7 @@ export default function App() {
 
       <main className="max-w-7xl mx-auto px-4 sm:px-6 py-6 space-y-6">
         <StatsBar stats={stats} loading={loading} />
-        <AddProductForm onAdd={handleAddProduct} onAddBulk={handleAddBulk} />
+        <AddProductForm onAdd={handleAddProduct} onAddBulk={handleAddBulk} categories={categories} />
 
         <div className="flex gap-1 overflow-x-auto bg-surface-800/50 rounded-lg p-1 w-full sm:w-fit">
           {[
@@ -237,7 +239,7 @@ export default function App() {
             onAddBulk={handleAddBulk}
           />
         ) : tab === 'analytics' ? (
-          <AnalyticsPanel />
+          <IntelligenceDashboard />
         ) : tab === 'logs' ? (
           <LogsPanel logs={logs} onRefresh={loadData} onClear={async () => {
             try {

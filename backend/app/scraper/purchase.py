@@ -315,71 +315,38 @@ async def add_to_cart_and_checkout(
         # ── Paso 3: Seleccionar productos y hacer checkout ──
         await record_step("Fase: Verificación de items y Checkout")
 
-        # ── Paso 3: Selección Inteligente (Solo el producto objetivo) ──
-        await record_step("Fase: Selección Quirúrgica del item (Solo Objetivo)")
+        # ── Paso 3: Selección de TODO el carrito (Modo Reserva Máxima) ──
+        await record_step("Fase: Seleccionando TODO en el carrito")
 
         try:
-            # 1. Identificar el identificador único del producto (ID de la URL)
-            # Ej: https://www.dofimall.com/product/12345 -> '12345'
-            product_id_str = product_url.rstrip('/').split('/')[-1]
-            logger.info(f"🎯 Identificador del objetivo: {product_id_str}")
-
-            # 2. Localizar todas las filas de productos en el carrito
-            # DofiMall suele usar .cart-item o estructuras con el-checkbox
-            # Buscaremos cada checkbox y su contexto
-            checkboxes = page.locator(".el-checkbox, .store_sel, .item_sel, .check-box")
-            count = await checkboxes.count()
-            logger.info(f"🛒 Encontrados {count} elementos de selección en el carrito")
-
-            for i in range(count):
-                cb = checkboxes.nth(i)
-                # Encontrar el contenedor o fila (ancestor) para ver a qué producto pertenece
-                row = page.locator(f"xpath=(//div[contains(@class, 'el-checkbox') or contains(@class, 'sel')] | //span[contains(@class, 'el-checkbox')])[{i+1}]/ancestor::div[contains(@class, 'item') or contains(@class, 'card') or contains(@class, 'row') or contains(@class, 'store')]").first
-                
-                # En DofiMall los links de productos son '/goods/detail', no solo 'product'
-                link = row.locator("a[href*='goods'], a[href*='detail'], a[href*='product']").first
-                href = await link.get_attribute("href") if await link.count() > 0 else ""
-                
-                # VALIDACIÓN CRUCIAL: Es más seguro evaluar clases hijas e inputs internos en Vue
-                is_checked = await cb.evaluate("el => el.checked || el.classList.contains('is-checked') || el.classList.contains('checked') || !!el.querySelector('.is-checked, .checked, input[type=\"checkbox\"]:checked')")
-                
-                import re
-                pid_match = re.search(r'productId=(\d+)', product_url)
-                extracted_pid = pid_match.group(1) if pid_match else product_id_str
-                
-                # Verificamos si encontramos el ID (ej: 200003580913) en el enlace
-                is_target = extracted_pid in href or product_url in href
-
-                if is_target:
-                    if not is_checked:
-                        await record_step(f"✅ Marcando OBJETIVO: {href}")
-                        await cb.click(force=True)
-                    else:
-                        logger.info(f"🎯 Objetivo ya estaba marcado. Manteniendo check.")
-                else:
-                    if is_checked:
-                        await record_step(f"🚫 Desmarcando INTRUSO: {href}")
-                        await cb.click(force=True)
-                    else:
-                        logger.info(f"⏭️ Saltando item ajeno ya desmarcado.")
-
-            await page.wait_for_timeout(1500)
+            # En la versión actual queremos comprar TODO lo que hay en el carrito
+            select_all_target = page.locator("span").filter(has_text="Seleccionar todo").first
             
-            # Confirmar si el botón de pagar está habilitado (a veces hay un "Seleccionar todo" que interfiere)
-            if count == 0:
-                logger.warning("No se encontraron checkboxes individuales, probando Seleccionar Todo")
-                select_all = page.locator(".el-checkbox:has-text('Seleccionar todo'), .check-all").first
-                if await select_all.count() > 0:
-                    await select_all.click(force=True)
+            # Si no encuentra span literal, intentamos con get_by_text
+            if await select_all_target.count() == 0:
+                select_all_target = page.get_by_text("Seleccionar todo", exact=False).first
+
+            # Bucle de comprobación para asegurarnos de que la selección sea efectiva
+            for attempt in range(4):
+                page_text = await page.inner_text("body")
+                
+                # DofiMall dice "Ha seleccionado 0 productos" o "Total: $0" si no hay check
+                if "Ha seleccionado 0 " in page_text or "Total: $0" in page_text:  # Usamos espacio extra al final de 0 por seguridad
+                    logger.info(f"🛒 Intento {attempt+1}: Carrito desmarcado (0 seleccionados). Forzando click en 'Seleccionar todo'...")
+                    if await select_all_target.count() > 0:
+                        await select_all_target.click(force=True)
+                        await page.wait_for_timeout(1000)
+                    else:
+                        logger.warning("⚠️ No se encontró el texto 'Seleccionar todo' en el DOM.")
+                        break
+                else:
+                    logger.info("✅ 'Seleccionar todo' activado correctamente. Productos listos para pagar.")
+                    break
+                    
+            await page.wait_for_timeout(1000)
                 
         except Exception as e:
-            logger.warning(f"⚠️ Fallo en la selección quirúrgica, intentando fallback de emergencia: {e}")
-            # Fallback: intentar al menos que el botón de pagar esté habilitado
-            try:
-                select_all = page.get_by_text("Seleccionar todo", exact=False).first
-                if await select_all.count() > 0:
-                    await select_all.click(force=True)
-            except: pass 
+            logger.warning(f"⚠️ Error intentando seleccionar todo: {e}")
 
         # ── Ajustar Cantidad Exacta dentro del carrito ──
         if target_quantity > 1:

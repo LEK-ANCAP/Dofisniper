@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
-import { Settings, Bell, Send, UserCheck, Shield } from 'lucide-react';
-import { fetchConfig, updateConfig, testNotification, fetchSettings, updateSettings, forceLogout } from '../utils/api';
+import { Settings, Bell, Send, UserCheck, Shield, Tag, Plus, Trash2 } from 'lucide-react';
+import { fetchConfig, updateConfig, testNotification, fetchSettings, updateSettings, forceLogout, fetchCategories, createCategory, deleteCategory } from '../utils/api';
 import { toast } from 'react-hot-toast';
 
 export default function ConfigPanel() {
@@ -11,20 +11,27 @@ export default function ConfigPanel() {
   const [password, setPassword] = useState('');
   const [keepAliveEnabled, setKeepAliveEnabled] = useState(false);
 
+  // Categorías
+  const [categories, setCategories] = useState([]);
+  const [newCategoryName, setNewCategoryName] = useState('');
+  const [newCategoryColor, setNewCategoryColor] = useState('#38BDF8');
+
   useEffect(() => {
     loadData();
   }, []);
 
   const loadData = async () => {
     try {
-      const [configData, settingsData] = await Promise.all([
+      const [configData, settingsData, cats] = await Promise.all([
         fetchConfig(),
-        fetchSettings()
+        fetchSettings(),
+        fetchCategories()
       ]);
       setEnabled(configData.notifications_enabled);
       setEmail(settingsData.dofimall_email || '');
       setPassword(settingsData.dofimall_password || '');
       setKeepAliveEnabled(settingsData.keep_alive_enabled || false);
+      setCategories(cats);
     } catch (e) {
       console.error(e);
       toast.error('Error cargando configuración o credenciales');
@@ -88,6 +95,30 @@ export default function ConfigPanel() {
       }
     } catch (e) {
       toast.error('Fallo al destruir la sesión: ' + e.message, { id: toastId });
+    }
+  };
+
+  const handleAddCategory = async () => {
+    if (!newCategoryName.trim()) return;
+    const toastId = toast.loading('Añadiendo categoría...');
+    try {
+      const cat = await createCategory({ name: newCategoryName, color: newCategoryColor });
+      setCategories([...categories, cat]);
+      setNewCategoryName('');
+      toast.success('Categoría añadida', { id: toastId });
+    } catch (e) {
+      toast.error(e.message, { id: toastId });
+    }
+  };
+
+  const handleDeleteCategory = async (id) => {
+    if (!window.confirm("¿Seguro que quieres borrar esta categoría? Eliminar categorías puede afectar el filtrado si tienen productos asociados, aunque por ahora la columna no está constreñida a CASCADE.")) return;
+    try {
+      await deleteCategory(id);
+      setCategories(categories.filter(c => c.id !== id));
+      toast.success('Categoría eliminada');
+    } catch (e) {
+      toast.error('Error al eliminar');
     }
   };
 
@@ -218,6 +249,80 @@ export default function ConfigPanel() {
             <input type="checkbox" className="sr-only peer" checked={keepAliveEnabled} onChange={handleKeepAliveToggle} />
             <div className="w-14 h-7 bg-surface-600 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-0.5 after:left-[4px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-6 after:w-6 after:transition-all peer-checked:bg-amber-500"></div>
           </label>
+        </div>
+
+        {/* Categories */}
+        <div className="flex flex-col p-5 bg-surface-900 rounded-lg border border-surface-700 shadow-md">
+          <div className="flex items-start gap-4 mb-4 border-b border-surface-700/50 pb-4">
+            <div className="p-3 rounded-full bg-brand-500/20 text-brand-400">
+              <Tag size={24} />
+            </div>
+            <div className="flex-1">
+              <div className="flex justify-between items-start">
+                  <div>
+                      <h3 className="font-medium text-white text-md">Categorías de Analíticas (Market Intelligence)</h3>
+                      <p className="text-surface-400 text-sm mt-1 max-w-lg">
+                        Define las familias logísticas a las que pertenecen tus enlaces (ej: "Solares", "Electrodomésticos"). En el nuevo Dashboard avanzado de inteligencia estadística se separará el volumen en tránsito de acuerdo a estos grupos.
+                      </p>
+                  </div>
+              </div>
+            </div>
+          </div>
+          
+          <div className="flex items-end gap-3 mb-5 mt-2 bg-surface-800 p-3 rounded-lg border border-surface-700">
+             <div className="flex-1">
+                <label className="block text-xs font-semibold text-surface-400 mb-1 uppercase tracking-wide">Nueva Categoría</label>
+                <input
+                    type="text"
+                    value={newCategoryName}
+                    onChange={(e) => setNewCategoryName(e.target.value)}
+                    placeholder="Ej. Baterías 48v, Motos, Cemento..."
+                    className="w-full bg-surface-900 border border-surface-700 rounded-lg px-4 py-2.5 text-white placeholder:text-surface-500 focus:border-brand-500 focus:outline-none focus:ring-1 focus:ring-brand-500 transition-all font-medium text-sm"
+                />
+             </div>
+             <div>
+                <label className="block text-xs font-semibold text-surface-400 mb-1 uppercase tracking-wide">Color</label>
+                <div className="h-[42px] px-2 bg-surface-900 border border-surface-700 rounded-lg flex items-center justify-center cursor-pointer">
+                    <input
+                        type="color"
+                        value={newCategoryColor}
+                        onChange={(e) => setNewCategoryColor(e.target.value)}
+                        className="w-8 h-8 rounded shrink-0 cursor-pointer border-0 p-0 bg-transparent"
+                    />
+                </div>
+             </div>
+             <button
+                 onClick={handleAddCategory}
+                 disabled={!newCategoryName.trim()}
+                 className="flex items-center justify-center gap-2 h-[42px] px-4 rounded-lg bg-brand-500 hover:bg-brand-400 disabled:opacity-50 disabled:cursor-not-allowed text-white font-medium transition-colors whitespace-nowrap shadow-sm shadow-brand-500/20"
+             >
+                 <Plus size={16} /> <span className="hidden sm:inline">Añadir</span>
+             </button>
+          </div>
+
+          {categories.length === 0 ? (
+            <div className="text-center py-6 text-surface-500 text-sm italic">
+                Aún no hay categorías registradas.
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3">
+              {categories.map((cat) => (
+                <div key={cat.id} className="flex items-center justify-between p-3 bg-surface-800 border border-surface-700 rounded-lg hover:border-surface-600 transition-colors group">
+                    <div className="flex items-center gap-2">
+                        <div className="w-4 h-4 rounded-full shadow-sm" style={{ backgroundColor: cat.color }}></div>
+                        <span className="text-sm font-semibold text-surface-200">{cat.name}</span>
+                    </div>
+                    <button 
+                        onClick={() => handleDeleteCategory(cat.id)}
+                        className="text-surface-500 hover:text-red-400 opacity-0 group-hover:opacity-100 transition-all p-1"
+                        title="Eliminar Categoría"
+                    >
+                        <Trash2 size={16} />
+                    </button>
+                </div>
+              ))}
+            </div>
+          )}
         </div>
 
       </div>

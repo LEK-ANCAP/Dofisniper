@@ -1,23 +1,35 @@
 import { useState } from 'react';
 import { Plus, Upload, Link } from 'lucide-react';
+import { toast } from 'react-hot-toast';
 
-export default function AddProductForm({ onAdd, onAddBulk }) {
+export default function AddProductForm({ onAdd, onAddBulk, categories = [] }) {
   const [url, setUrl] = useState('');
   const [name, setName] = useState('');
+  const [categoryId, setCategoryId] = useState('');
   const [bulkMode, setBulkMode] = useState(false);
   const [bulkUrls, setBulkUrls] = useState('');
 
   const handleSubmit = (e) => {
     e.preventDefault();
     if (bulkMode) {
+      if (!categoryId) {
+        toast.error("Selecciona una categoría primero");
+        return;
+      }
       const urls = bulkUrls.split('\n').map(u => u.trim()).filter(Boolean);
       if (urls.length > 0) {
-        onAddBulk(urls);
+        // Enviar categoryId al bulk
+        const items = urls.map(u => ({ url: u, category_id: parseInt(categoryId) }));
+        onAddBulk(items);
         setBulkUrls('');
       }
     } else {
       if (url.trim()) {
-        onAdd(url.trim(), name.trim());
+        if (!categoryId) {
+          toast.error("Por favor selecciona una categoría logística");
+          return;
+        }
+        onAdd(url.trim(), name.trim(), parseInt(categoryId));
         setUrl('');
         setName('');
       }
@@ -80,19 +92,49 @@ export default function AddProductForm({ onAdd, onAddBulk }) {
               value={name}
               onChange={(e) => setName(e.target.value)}
               placeholder="Nombre (opcional)"
-              className="sm:w-48 bg-surface-900/60 border border-surface-700/50 rounded-lg px-4 py-2.5
+              className="sm:w-40 bg-surface-900/60 border border-surface-700/50 rounded-lg px-4 py-2.5
                          text-sm text-white placeholder-surface-200/30 focus:outline-none
                          focus:border-brand-500/50"
             />
+            <select
+                value={categoryId}
+                onChange={(e) => setCategoryId(e.target.value)}
+                required
+                className="bg-surface-900/60 border border-surface-700/50 rounded-lg px-4 py-2.5
+                           text-sm text-white focus:outline-none focus:border-brand-500/50"
+            >
+                <option value="" disabled hidden>Categoría</option>
+                {categories.map(cat => (
+                    <option key={cat.id} value={cat.id}>{cat.name}</option>
+                ))}
+            </select>
             <button
               type="submit"
-              disabled={!url.trim()}
+              disabled={!url.trim() || !categoryId}
               className="px-5 py-2.5 rounded-lg bg-brand-600 hover:bg-brand-500 text-white
                          text-sm font-medium transition-all disabled:opacity-30 whitespace-nowrap"
             >
               <Plus size={14} className="inline mr-1 -mt-0.5" />
               Añadir
             </button>
+          </div>
+        )}
+        
+        {/* Bulk Category Selector extra */}
+        {bulkMode && (
+          <div className="mt-3 flex items-center justify-between gap-4">
+             <span className="text-xs text-surface-400">Todos los enlaces importados se agruparán bajo la categoría seleccionada.</span>
+             <select
+                value={categoryId}
+                onChange={(e) => setCategoryId(e.target.value)}
+                required
+                className="bg-surface-900/60 border border-surface-700/50 rounded-lg px-4 py-2 text-sm text-white focus:outline-none focus:border-brand-500/50 min-w-[200px]"
+             >
+                <option value="" disabled hidden>Asignar categoría...</option>
+                {categories.map(cat => (
+                    <option key={cat.id} value={cat.id}>{cat.name}</option>
+                ))}
+            </select>
           </div>
         )}
       </form>

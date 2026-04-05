@@ -1,5 +1,7 @@
-from sqlalchemy import Column, Integer, String, Boolean, DateTime, Text, Enum as SAEnum, JSON
+import enum
+from sqlalchemy import Column, Integer, String, Boolean, DateTime, Text, Enum as SAEnum, JSON, ForeignKey, Float
 from sqlalchemy.sql import func
+from sqlalchemy.orm import relationship
 from app.core.database import Base
 import enum
 
@@ -20,6 +22,18 @@ class LogLevel(str, enum.Enum):
     ERROR = "error"
 
 
+class ProductCategory(Base):
+    __tablename__ = "product_categories"
+    
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    name = Column(String(100), unique=True, nullable=False)
+    color = Column(String(20), default="#38BDF8") # Default Tailwind Sky 400
+    created_at = Column(DateTime, server_default=func.now())
+    
+    products = relationship("Product", back_populates="category")
+
+
+
 class Product(Base):
     __tablename__ = "products"
 
@@ -34,6 +48,9 @@ class Product(Base):
     last_in_stock = Column(DateTime, nullable=True)
     check_count = Column(Integer, default=0)
     notes = Column(Text, nullable=True)
+    
+    category_id = Column(Integer, ForeignKey("product_categories.id"), nullable=True)
+    category = relationship("ProductCategory", back_populates="products")
 
     # Stock data
     warehouse_stock = Column(Integer, default=0)    # Stock global en almacén
@@ -74,6 +91,31 @@ class StockHistory(Base):
     old_transit_stock = Column(Integer, default=0)
     new_transit_stock = Column(Integer, default=0)
     created_at = Column(DateTime, server_default=func.now())
+
+
+class ProductSnapshot(Base):
+    __tablename__ = "product_snapshots"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    product_id = Column(Integer, ForeignKey("products.id"), nullable=False, index=True)
+    stock_quantity = Column(Integer, default=0)
+    transit_quantity = Column(Integer, default=0)
+    created_at = Column(DateTime, server_default=func.now(), index=True)
+
+
+class ProductAnalytics(Base):
+    __tablename__ = "product_analytics"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    product_id = Column(Integer, ForeignKey("products.id"), unique=True, nullable=False)
+    demand_score = Column(Float, default=0.0)
+    avg_depletion_hours = Column(Float, default=0.0)
+    availability_rate = Column(Float, default=0.0)
+    restock_cycle_days = Column(Float, default=0.0)
+    next_restock_estimate = Column(DateTime, nullable=True)
+    trend = Column(String(20), default="neutral") # bullish, bearish, neutral
+    stock_velocity = Column(Float, default=0.0)
+    updated_at = Column(DateTime, server_default=func.now(), onupdate=func.now())
 
 
 class AppSettings(Base):

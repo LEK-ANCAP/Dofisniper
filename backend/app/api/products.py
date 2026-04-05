@@ -3,6 +3,7 @@
 from fastapi import APIRouter, Depends, HTTPException, BackgroundTasks
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, func
+from sqlalchemy.orm import joinedload
 from typing import List
 from app.core.database import get_db
 from app.models.models import Product, ProductStatus
@@ -24,7 +25,7 @@ async def get_products(
     db: AsyncSession = Depends(get_db),
 ):
     """Lista todos los productos monitorizados."""
-    query = select(Product).order_by(Product.created_at.desc())
+    query = select(Product).options(joinedload(Product.category)).order_by(Product.created_at.desc())
     if status:
         query = query.where(Product.status == status)
     result = await db.execute(query)
@@ -69,6 +70,7 @@ async def add_product(product: ProductCreate, db: AsyncSession = Depends(get_db)
         url=product.url,
         name=product.name or "Sin nombre",
         notes=product.notes,
+        category_id=product.category_id,
     )
     db.add(db_product)
     await db.commit()
@@ -93,6 +95,7 @@ async def add_products_bulk(
             url=product.url,
             name=product.name or "Sin nombre",
             notes=product.notes,
+            category_id=product.category_id,
         )
         db.add(db_product)
         created.append(db_product)

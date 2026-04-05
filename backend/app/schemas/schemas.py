@@ -4,12 +4,32 @@ from typing import Optional, Any
 from app.models.models import ProductStatus, LogLevel
 
 
+# --- Categories ---
+
+class ProductCategoryCreate(BaseModel):
+    name: str
+    color: Optional[str] = "#38BDF8"
+
+class ProductCategoryUpdate(BaseModel):
+    name: Optional[str] = None
+    color: Optional[str] = None
+
+class ProductCategoryResponse(BaseModel):
+    id: int
+    name: str
+    color: str
+    created_at: datetime
+    
+    class Config:
+        from_attributes = True
+
 # --- Products ---
 
 class ProductCreate(BaseModel):
     url: str
     name: Optional[str] = "Sin nombre"
     notes: Optional[str] = None
+    category_id: Optional[int] = None
 
 
 class ProductUpdate(BaseModel):
@@ -20,6 +40,7 @@ class ProductUpdate(BaseModel):
     target_quantity: Optional[int] = None
     min_stock_to_trigger: Optional[int] = None
     auto_buy: Optional[bool] = None
+    category_id: Optional[int] = None
 
 
 class ProductResponse(BaseModel):
@@ -34,6 +55,8 @@ class ProductResponse(BaseModel):
     last_in_stock: Optional[datetime] = None
     check_count: int
     notes: Optional[str] = None
+    category_id: Optional[int] = None
+    category: Optional[ProductCategoryResponse] = None
     warehouse_stock: int = 0
     transit_stock: int = 0
     stock_type: Optional[int] = None

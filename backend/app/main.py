@@ -32,12 +32,15 @@ from app.api.products import router as products_router
 from app.api.logs import router as logs_router
 from app.api.settings import router as settings_router
 from app.api.analytics import router as analytics_router
+from app.api.categories import router as categories_router
 from app.scraper.monitor import check_stock
 from pydantic import BaseModel
 from app.notifications.email_notif import send_email_notification
 from app.notifications.whatsapp import send_whatsapp_notification
 from app.notifications.telegram import send_telegram_notification
 from app.core.persistent_config import get_app_config, save_app_config
+from app.api.market_intelligence import calculate_product_analytics
+from app.models.models import ProductSnapshot
 
 settings = get_settings()
 scheduler = AsyncIOScheduler()
@@ -95,7 +98,18 @@ async def check_all_products():
                 if stock_result.image_url:
                     product.image_url = stock_result.image_url
 
-                # Calcular cambios de stock
+                # ── Market Intelligence Snapshot ──
+                snapshot = ProductSnapshot(
+                    product_id=product.id,
+                    stock_quantity=stock_result.warehouse_stock,
+                    transit_quantity=stock_result.transit_stock
+                )
+                db.add(snapshot)
+                await db.commit()
+                # Run analytics engine asynchronously so we don't block the loop
+                asyncio.create_task(calculate_product_analytics(product.id, db))
+                
+                # Calcular cambios de stock (Logging antiguo)
                 delta_warehouse = stock_result.warehouse_stock - product.warehouse_stock
                 delta_transit = stock_result.transit_stock - product.transit_stock
                 total_delta = delta_warehouse + delta_transit
@@ -385,12 +399,12 @@ async def lifespan(app: FastAPI):
     # Iniciar Browser Manager Persistente en una tarea de fondo
     asyncio.create_task(init_browser_background())
 
-    logger.info(f"⏰ Scheduler iniciado — comprobando cada {settings.check_interval_seconds} seg")
+    logger.info(f"⏰ Scheduler iniciado — comprobando cada 60 seg (Market Intelligence Hardcoded)")
     
     scheduler.add_job(
         check_all_products,
         "interval",
-        seconds=settings.check_interval_seconds,
+        seconds=60,
         id="stock_checker",
         name="Stock Checker",
         replace_existing=True,
@@ -449,6 +463,10 @@ app.include_router(products_router, prefix="/api", dependencies=[Depends(get_cur
 app.include_router(logs_router, prefix="/api", dependencies=[Depends(get_current_user)])
 app.include_router(settings_router, prefix="/api", dependencies=[Depends(get_current_user)])
 app.include_router(analytics_router, prefix="/api", dependencies=[Depends(get_current_user)])
+app.include_router(categories_router, prefix="/api", dependencies=[Depends(get_current_user)])
+
+from app.api.market_intelligence import router as market_intelligence_router
+app.include_router(market_intelligence_router, prefix="/api", dependencies=[Depends(get_current_user)])
 
 
 @app.get("/api/dashboard", response_model=DashboardStats, dependencies=[Depends(get_current_user)])

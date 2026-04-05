@@ -81,3 +81,15 @@ export const forceLogout = () =>
 
 // Analytics
 export const fetchProductAnalytics = (id) => request(`/analytics/product/${id}`);
+
+// Intelligence
+export const fetchIntelligenceDashboard = () => request('/market-intelligence/dashboard');
+export const fetchProductHistory = (id) => request(`/market-intelligence/history/${id}`);
+export const fetchDemandRanking = () => request('/market-intelligence/demand-ranking');
+export const fetchDistribution = () => request('/market-intelligence/distribution');
+
+// Categories
+export const fetchCategories = () => request('/categories');
+export const createCategory = (data) => request('/categories', { method: 'POST', body: JSON.stringify(data) });
+export const updateCategory = (id, data) => request(`/categories/${id}`, { method: 'PATCH', body: JSON.stringify(data) });
+export const deleteCategory = (id) => request(`/categories/${id}`, { method: 'DELETE' });
