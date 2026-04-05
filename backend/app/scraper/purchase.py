@@ -213,6 +213,34 @@ async def add_to_cart_and_checkout(
             logger.warning(f"Sensor no pudo capturar frame en '{msg}' (posible navegación o cierre de pestaña).")
 
     try:
+        # ── Paso 0: Enrutamiento Óptimo de Almacén ──
+        from app.scraper.monitor import check_stock
+        from urllib.parse import urlparse, parse_qs, urlencode, urlunparse
+        
+        await record_step("Calculando enrutamiento de almacén...")
+        stock_info = await check_stock(product_url)
+        
+        best_wh = None
+        if stock_info and stock_info.warehouses:
+            physicals = [w for w in stock_info.warehouses if w.warehouse_stock > 0]
+            transits = [w for w in stock_info.warehouses if w.transit_stock > 0]
+            
+            if physicals:
+                # Priorizar Camagüey, el resto después
+                physicals.sort(key=lambda w: 0 if "camag" in w.name.lower() else 1)
+                best_wh = physicals[0]
+            elif transits:
+                transits.sort(key=lambda w: 0 if "camag" in w.name.lower() else 1)
+                best_wh = transits[0]
+                
+        if best_wh:
+            parsed = urlparse(product_url)
+            qs = parse_qs(parsed.query)
+            qs["warehouseId"] = [str(best_wh.address_id)]
+            new_query = urlencode(qs, doseq=True)
+            product_url = urlunparse(parsed._replace(query=new_query))
+            logger.info(f"📍 URL de compra enrutada al almacén prioritario: {best_wh.name} ({best_wh.address_id})")
+
         # ── Paso 1: Añadir al carrito ──
         await record_step("Navegando a la URL del producto")
 
