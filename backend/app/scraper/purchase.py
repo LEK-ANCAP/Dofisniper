@@ -483,8 +483,15 @@ async def add_to_cart_and_checkout(
             
         except PlaywrightTimeout:
             # Si llegamos aquí y no hay botón de acuerdo ni redirección, el sistema ha fallado en el Pagar
+            import os
+            os.makedirs("logs", exist_ok=True)
+            await page.screenshot(path="logs/checkout_final_fail.png", full_page=True)
+            content = await page.content()
+            with open("logs/checkout_final_fail.html", "w", encoding="utf-8") as f:
+                f.write(content)
+                
             result["message"] = "CRÍTICO: No apareció el aviso legal ni hubo redirección tras Enviar pedido."
-            logger.error(f"❌ {result['message']}")
+            logger.error(f"❌ {result['message']} (Screenshot y DOM guardados en logs/)")
             return result
 
         # ── Paso 5: Completado y reporte ──
