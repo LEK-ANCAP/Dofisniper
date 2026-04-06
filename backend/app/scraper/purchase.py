@@ -429,19 +429,45 @@ async def add_to_cart_and_checkout(
             return result
             
         await record_step("Presionando Confirmar y Pagar ('Checkout')")
-        try:
-            # Ejecutar scroll hacia el botón por si está fuera de pantalla
-            await checkout_btn.scroll_into_view_if_needed()
-            # Probar click normal de Playwright (genera todos los eventos de Vue)
-            await checkout_btn.click(force=True, timeout=5000)
-            logger.info("🖱️ Mouse Click nativo sobre 'Pagar'")
-        except Exception as e:
-            # Fallback a JS click
-            await checkout_btn.evaluate("element => element.click()")
-            logger.info("🖱️ Fallback JS Click en 'Pagar'")
         
-        # Esperamos explícitamente a que Vue monte la nueva pantalla (en lugar del timeout fijo, monitoreamos DOM)
-        await page.wait_for_timeout(4000)
+        # Bucle agresivo para salir del carrito: intentamos clickear y esperamos navegación
+        navigation_success = False
+        
+        for attempt in range(3):
+            if navigation_success:
+                break
+                
+            try:
+                await checkout_btn.scroll_into_view_if_needed()
+                
+                # Múltiples ataques de click simultáneos para penetrar VueJS
+                await checkout_btn.evaluate("el => el.dispatchEvent(new MouseEvent('mousedown', {bubbles: true}))")
+                await checkout_btn.evaluate("el => el.dispatchEvent(new MouseEvent('mouseup', {bubbles: true}))")
+                await checkout_btn.evaluate("el => el.click()")
+                await checkout_btn.click(force=True, timeout=2000)
+                
+                logger.info(f"🖱️ Click agresivo en 'Pagar' ejecutado (Intento {attempt+1})")
+            except Exception as e:
+                logger.warning(f"Error parcial en click: {e}")
+
+            # Esperamos a ver si Vue responde y cambia la URL
+            try:
+                # Esperamos a que la URL cambie (es decir, que ya no sea la del carrito)
+                async with page.expect_navigation(timeout=6000):
+                    pass
+                navigation_success = True
+                logger.info("✅ Navegación fuera del carrito detectada tras pulsar Pagar.")
+            except:
+                logger.warning(f"⚠️ Sin navegación tras intento {attempt+1}. DOM posiblemente bloqueando.")
+                await page.wait_for_timeout(1000)
+
+        if not navigation_success:
+            await record_step("CRÍTICO: El botón Pagar fue presionado pero el Carrito ignoró la acción.")
+            import os
+            os.makedirs("logs", exist_ok=True)
+            await page.screenshot(path="logs/checkout_final_fail.png", full_page=True)
+            result["message"] = "CRÍTICO: El botón 'Pagar' no funcionó o la red bloqueó la petición."
+            return result
 
         # ── Paso 4: Enviar pedido y aceptar condiciones ──
         await record_step("Fase: Confirmación final del pedido")
