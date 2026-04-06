@@ -218,7 +218,7 @@ async def add_to_cart_and_checkout(
         from urllib.parse import urlparse, parse_qs, urlencode, urlunparse
         
         await record_step("Calculando enrutamiento de almacén...")
-        stock_info = await check_stock(product_url)
+        stock_info = await check_stock(page, product_url)
         
         best_wh = None
         if stock_info and stock_info.warehouses:
