@@ -400,14 +400,15 @@ async def add_to_cart_and_checkout(
         await record_step("Escaneando el DOM buscando el botón final de PAGO (Checkout)")
         try:
             # Buscar el botón principal del carrito go_buy (tomado de la captura de DevTools)
-            checkout_locator = page.locator(".go_buy, .go_submit, .goBuy, .cart-submit, button:has-text('Pagar')").first
+            # CRÍTICO: Añadido :visible porque DofiMall renderiza la versión móvil y escritorio al mismo tiempo y .first agarraba uno escondido.
+            checkout_locator = page.locator(".go_buy:visible, .go_submit:visible, .cart-submit:visible, button:has-text('Pagar'):visible").first
             await checkout_locator.wait_for(state="attached", timeout=5000)
             checkout_btn = checkout_locator
             await record_step("Botón de Pagar detectado y visible.")
         except PlaywrightTimeout:
             try:
                 # Plan B: buscar por Regex para soportar cosas como Pagar(1) o Pagar
-                checkout_locator = page.locator("text=/Pagar/i, text=/Comprar/i").last
+                checkout_locator = page.get_by_text("Pagar", exact=False).filter(visible=True).first
                 await checkout_locator.wait_for(state="attached", timeout=5000)
                 checkout_btn = checkout_locator
                 await record_step("Botón de Pagar detectado mediante texto.")
