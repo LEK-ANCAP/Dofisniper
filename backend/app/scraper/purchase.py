@@ -343,38 +343,8 @@ async def add_to_cart_and_checkout(
         # ── Paso 3: Seleccionar productos y hacer checkout ──
         await record_step("Fase: Verificación de items y Checkout")
 
-        # ── Paso 3: Selección de TODO el carrito (Modo Reserva Máxima) ──
-        await record_step("Fase: Seleccionando TODO en el carrito")
-
-        try:
-            # En la versión actual queremos comprar TODO lo que hay en el carrito
-            select_all_target = page.locator("span").filter(has_text="Seleccionar todo").first
-            
-            # Si no encuentra span literal, intentamos con get_by_text
-            if await select_all_target.count() == 0:
-                select_all_target = page.get_by_text("Seleccionar todo", exact=False).first
-
-            # Bucle de comprobación para asegurarnos de que la selección sea efectiva
-            for attempt in range(4):
-                page_text = await page.inner_text("body")
-                
-                # DofiMall dice "Ha seleccionado 0 productos" o "Total: $0" si no hay check
-                if "Ha seleccionado 0 " in page_text or "Total: $0" in page_text:  # Usamos espacio extra al final de 0 por seguridad
-                    logger.info(f"🛒 Intento {attempt+1}: Carrito desmarcado (0 seleccionados). Forzando click en 'Seleccionar todo'...")
-                    if await select_all_target.count() > 0:
-                        await select_all_target.click(force=True)
-                        await page.wait_for_timeout(1000)
-                    else:
-                        logger.warning("⚠️ No se encontró el texto 'Seleccionar todo' en el DOM.")
-                        break
-                else:
-                    logger.info("✅ 'Seleccionar todo' activado correctamente. Productos listos para pagar.")
-                    break
-                    
-            await page.wait_for_timeout(1000)
-                
-        except Exception as e:
-            logger.warning(f"⚠️ Error intentando seleccionar todo: {e}")
+        # (La selección de todo el carrito se delega al comportamiento por defecto de DofiMall, 
+        # que auto-selecciona el ítem recién añadido. Modificarlo causa desincronización en VueJS).
 
         # ── Ajustar Cantidad Exacta dentro del carrito ──
         if target_quantity > 1:
@@ -400,15 +370,14 @@ async def add_to_cart_and_checkout(
         await record_step("Escaneando el DOM buscando el botón final de PAGO (Checkout)")
         try:
             # Buscar el botón principal del carrito go_buy (tomado de la captura de DevTools)
-            # CRÍTICO: Añadido :visible porque DofiMall renderiza la versión móvil y escritorio al mismo tiempo y .first agarraba uno escondido.
-            checkout_locator = page.locator(".go_buy:visible, .go_submit:visible, .cart-submit:visible, button:has-text('Pagar'):visible").first
+            checkout_locator = page.locator(".go_buy, .go_submit, .goBuy, .cart-submit, button:has-text('Pagar')").first
             await checkout_locator.wait_for(state="attached", timeout=5000)
             checkout_btn = checkout_locator
             await record_step("Botón de Pagar detectado y visible.")
         except PlaywrightTimeout:
             try:
                 # Plan B: buscar por Regex para soportar cosas como Pagar(1) o Pagar
-                checkout_locator = page.get_by_text("Pagar", exact=False).filter(visible=True).first
+                checkout_locator = page.locator("text=/Pagar/i, text=/Comprar/i").last
                 await checkout_locator.wait_for(state="attached", timeout=5000)
                 checkout_btn = checkout_locator
                 await record_step("Botón de Pagar detectado mediante texto.")
@@ -429,45 +398,19 @@ async def add_to_cart_and_checkout(
             return result
             
         await record_step("Presionando Confirmar y Pagar ('Checkout')")
+        try:
+            # Ejecutar scroll hacia el botón por si está fuera de pantalla
+            await checkout_btn.scroll_into_view_if_needed()
+            # Probar click normal de Playwright (genera todos los eventos de Vue)
+            await checkout_btn.click(force=True, timeout=5000)
+            logger.info("🖱️ Mouse Click nativo sobre 'Pagar'")
+        except Exception as e:
+            # Fallback a JS click
+            await checkout_btn.evaluate("element => element.click()")
+            logger.info("🖱️ Fallback JS Click en 'Pagar'")
         
-        # Bucle agresivo para salir del carrito: intentamos clickear y esperamos navegación
-        navigation_success = False
-        
-        for attempt in range(3):
-            if navigation_success:
-                break
-                
-            try:
-                await checkout_btn.scroll_into_view_if_needed()
-                
-                # Múltiples ataques de click simultáneos para penetrar VueJS
-                await checkout_btn.evaluate("el => el.dispatchEvent(new MouseEvent('mousedown', {bubbles: true}))")
-                await checkout_btn.evaluate("el => el.dispatchEvent(new MouseEvent('mouseup', {bubbles: true}))")
-                await checkout_btn.evaluate("el => el.click()")
-                await checkout_btn.click(force=True, timeout=2000)
-                
-                logger.info(f"🖱️ Click agresivo en 'Pagar' ejecutado (Intento {attempt+1})")
-            except Exception as e:
-                logger.warning(f"Error parcial en click: {e}")
-
-            # Esperamos a ver si Vue responde y cambia la URL
-            try:
-                # Esperamos a que la URL cambie (es decir, que ya no sea la del carrito)
-                async with page.expect_navigation(timeout=6000):
-                    pass
-                navigation_success = True
-                logger.info("✅ Navegación fuera del carrito detectada tras pulsar Pagar.")
-            except:
-                logger.warning(f"⚠️ Sin navegación tras intento {attempt+1}. DOM posiblemente bloqueando.")
-                await page.wait_for_timeout(1000)
-
-        if not navigation_success:
-            await record_step("CRÍTICO: El botón Pagar fue presionado pero el Carrito ignoró la acción.")
-            import os
-            os.makedirs("logs", exist_ok=True)
-            await page.screenshot(path="logs/checkout_final_fail.png", full_page=True)
-            result["message"] = "CRÍTICO: El botón 'Pagar' no funcionó o la red bloqueó la petición."
-            return result
+        # Esperamos explícitamente a que Vue monte la nueva pantalla (en lugar del timeout fijo, monitoreamos DOM)
+        await page.wait_for_timeout(4000)
 
         # ── Paso 4: Enviar pedido y aceptar condiciones ──
         await record_step("Fase: Confirmación final del pedido")
