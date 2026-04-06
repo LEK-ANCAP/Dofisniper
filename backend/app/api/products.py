@@ -278,3 +278,14 @@ async def get_product_live_view(product_id: int):
     """Retorna el último frame en base64 para visualización en tiempo real."""
     frame = live_view_manager.get_frame(product_id)
     return {"frame": frame}
+
+@public_router.get("/debug/screenshot", response_class=StreamingResponse)
+async def get_debug_screenshot():
+    """Ruta para diagnóstico: descarga el último screenshot capturado tras un fallo en checkout."""
+    import os
+    file_path = "logs/checkout_final_fail.png"
+    if not os.path.exists(file_path):
+        raise HTTPException(status_code=404, detail="No se encontró ningún pantallazo de fallo previo")
+    
+    # Servimos el archivo directamente como imagen
+    return StreamingResponse(open(file_path, "rb"), media_type="image/png")
