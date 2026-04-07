@@ -10,7 +10,7 @@ import { playTacticalClick, playEngageAlarm, playMissionSuccess, playMissionFail
 const STATUS_CONFIG = {
   monitoring: { label: 'RECON', border: 'border-brand-400/50', text: 'text-brand-400', icon: Eye },
   in_stock: { label: 'DISPONIBLE', border: 'border-emerald-400', text: 'text-emerald-400', icon: Package },
-  purchasing: { label: 'INFILTRACIÓN', border: 'border-amber-500 animate-pulse', text: 'text-amber-500', icon: Zap },
+  purchasing: { label: 'INFILTRACIÓN', border: 'border-amber-500 animate-pulse', text: 'text-amber-500', icon: Crosshair },
   reserved: { label: 'ASEGURADO', border: 'border-blue-500', text: 'text-blue-400', icon: ShoppingCart },
   paused: { label: 'SUSPENDIDO', border: 'border-surface-600', text: 'text-surface-500', icon: Pause },
   error: { label: 'FALLA TÁCTICA', border: 'border-red-500', text: 'text-red-500', icon: AlertTriangle },
@@ -191,7 +191,7 @@ function ProductItem({ product, i, onDelete, onToggle, onCheckout, onOpenEdit })
           </div>
           {product.auto_buy && (
             <div className="absolute -top-1 -right-1 bg-amber-500 text-surface-900 p-0.5 rounded-full shadow-[0_0_8px_rgba(245,158,11,0.5)] z-10">
-               <Zap size={10} fill="currentColor" />
+               <Target size={10} fill="currentColor" />
             </div>
           )}
         </div>
@@ -241,7 +241,7 @@ function ProductItem({ product, i, onDelete, onToggle, onCheckout, onOpenEdit })
                  <Database size={16} className={expandedTab==='analytics'?'text-surface-900':'text-brand-400'} /> INTEL
               </button>
               <button onMouseEnter={() => playTacticalClick(0.01)} onClick={() => { playTacticalClick(); setExpandedTab(expandedTab === 'auto' ? null : 'auto'); }} className={`p-2 flex items-center gap-2 text-[10px] font-mono uppercase tracking-wider transition-colors ${expandedTab === 'auto' ? 'bg-amber-500 text-surface-900 font-bold border border-amber-500' : 'text-amber-400/70 hover:bg-amber-500/20 hover:text-amber-400 border border-transparent'}`}>
-                 <Zap size={16} className={expandedTab==='auto'?'text-surface-900':'text-amber-400'} /> OPERACIÓN
+                 <Target size={16} className={expandedTab==='auto'?'text-surface-900':'text-amber-400'} /> OPERACIÓN
               </button>
               <button onMouseEnter={() => playTacticalClick(0.01)} onClick={() => { playTacticalClick(); setExpandedTab(expandedTab === 'snipe' ? null : 'snipe'); }} className={`p-2 flex items-center gap-2 text-[10px] font-mono uppercase tracking-wider transition-colors ${expandedTab === 'snipe' ? 'bg-red-500 text-surface-900 font-bold border border-red-500' : 'text-red-500/70 hover:bg-red-500/20 hover:text-red-500 border border-transparent'}`}>
                  <Crosshair size={16} className={expandedTab==='snipe'?'text-surface-900':'text-red-500'} /> FORCE_CMD
@@ -346,10 +346,10 @@ function ProductItem({ product, i, onDelete, onToggle, onCheckout, onOpenEdit })
                 <div className="space-y-4 animate-slide-up">
                    <div className="bg-surface-800 border border-amber-500/30 p-4 shadow-inner relative overflow-hidden">
                       <div className="absolute top-0 right-0 p-2 opacity-10"><Target size={40} className="text-amber-500" /></div>
-                      <div className="text-[10px] text-amber-500 font-mono tracking-widest uppercase mb-4 flex items-center gap-2 font-bold"><Zap size={14}/> Sniper Autopilot Configuration</div>
+                      <div className="text-[10px] text-amber-500 font-mono tracking-widest uppercase mb-4 flex items-center gap-2 font-bold"><Target size={14}/> Sniper Autopilot Configuration</div>
                       
                       <label className={`w-full flex items-center justify-between p-3 mb-4 cursor-pointer border transition-all ${product.auto_buy ? 'bg-amber-500/10 border-amber-500/50 shadow-[0_0_15px_rgba(255,176,0,0.1)] text-amber-500 font-bold' : 'bg-surface-900 border-surface-700 text-surface-500 hover:border-surface-600'}`}>
-                         <span className="text-[10px] font-mono uppercase tracking-widest flex items-center gap-2"><Activity size={14}/> AUTO-ENGAGE ON RECON</span>
+                         <span className="text-[10px] font-mono uppercase tracking-widest flex items-center gap-2"><Crosshair size={14}/> AUTO-ENGAGE ON RECON</span>
                          <input type="checkbox" className="hidden" checked={product.auto_buy} onChange={async ()=>{
                              const newState = !product.auto_buy;
                              await updateProduct(product.id, { auto_buy: newState });

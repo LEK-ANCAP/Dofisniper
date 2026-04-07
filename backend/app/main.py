@@ -155,8 +155,10 @@ async def process_single_product(product_id: int):
         if not product or not product.is_active:
             return
 
-        # Skip scanning if it's already reserved or paused
-        if product.status in [ProductStatus.RESERVED, ProductStatus.PAUSED]:
+        # Skip scanning if it's already reserved or paused (BUT scan RESERVED if auto_buy is on)
+        if product.status == ProductStatus.PAUSED:
+            return
+        if product.status == ProductStatus.RESERVED and not product.auto_buy:
             return
 
         # If it's purchasing, do not scan it redundantly here, the checkout loop handles it
