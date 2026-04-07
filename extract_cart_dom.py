@@ -7,17 +7,10 @@ async def main():
         browser = await p.chromium.launch(headless=False)
         context = await browser.new_context()
         page = await context.new_page()
-        
         await page.goto("https://www.dofimall.com/login")
-        print("\n⏳ Haciendo login automático con credenciales maestras...")
-        await page.locator("input[placeholder='Correo electrónico']").fill("delavegadeus@gmail.com")
-        await page.locator("input[placeholder='contraseña']").fill("Mvd295186*")
-        await page.locator("button.login-btn, button:has-text('Iniciar sesión')").click()
+        print("\n⏳ ESPERANDO: Por favor, inicia sesión manualmente.")
+        print("💡 USA TUS CREDENCIALES: delavegadeus@gmail.com / Mvd295186*")
         
-        print("\n⏳ ESPERANDO: Por favor avanza si cae un captcha, y añade un producto.")
-        print("⏳ El script detectará cuando estés en el carrito y extraerá la estructura del DOM automáticamente...")
-        
-        # Esperar a que el usuario navegue
         print("\n" + "="*60)
         print("💡 INSTRUCCIONES:")
         print("1. Usa la ventana de Chromium abierta.")
@@ -32,15 +25,16 @@ async def main():
         print("\n✅ Extrayendo DOM actual... Espere.")
         await page.wait_for_timeout(1000)
         
-        # Guardar DOM
-        content = await page.content()
+        # Guardar DOM de la última pestaña o todas
+        active_page = context.pages[-1]
+        content = await active_page.content()
         with open("cart_dom_dump.html", "w", encoding="utf-8") as f:
             f.write(content)
             
         print("\n🔍 Analizando checkboxes visibles en Element UI:")
         
         # Buscar la estructura de el-checkbox
-        check_elements = await page.locator("label.el-checkbox, span.el-checkbox__input, .checkbox, [type='checkbox']").all()
+        check_elements = await active_page.locator("label.el-checkbox, span.el-checkbox__input, .checkbox, [type='checkbox']").all()
         print(f"Se encontraron {len(check_elements)} posibles checkboxes.")
         for i, el in enumerate(check_elements[:5]):  # Mostrar maximo 5
             try:
@@ -49,7 +43,7 @@ async def main():
             except: pass
             
         # Pagar
-        pagar_btn = page.locator("button:has-text('Pagar'), .go_buy, .go_submit").first
+        pagar_btn = active_page.locator("button:has-text('Pagar'), .go_buy, .go_submit").first
         try:
             pagar_html = await pagar_btn.evaluate("node => node.outerHTML")
             print(f"\n🛒 Botón de Pagar DOM:\n{pagar_html}")

@@ -127,10 +127,16 @@ async def execute_login_bypass(page, email, password, record_step_func=None):
                 login_btn_top = page.locator(".nav-top__login:visible, span:has-text('Iniciar sesión'):visible").first
                 if await login_btn_top.count() > 0:
                     await login_btn_top.click(timeout=5000)
-                    await page.wait_for_timeout(2000)
+                    await page.wait_for_load_state("networkidle", timeout=10000)
             except Exception as e:
                 logger.warning(f"Error al pulsar boton login top: {e}")
         
+        # Espera de protección corta en caso de carga parcial
+        try:
+            await page.wait_for_selector("form input[type='password']", timeout=5000, state="visible")
+        except:
+            pass
+
         if await page.locator("form input[type='password']:visible").count() > 0:
             await log_step("Inyectando credenciales magnas")
             try:
