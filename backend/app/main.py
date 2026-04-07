@@ -95,10 +95,17 @@ async def persistent_checkout_loop(product_id: int):
                 if actual_target_qty == -1:
                     actual_target_qty = stock_result.total_available
 
+                # Auto-start browser if not running (removes manual dependency)
                 if not browser_manager.is_running:
-                    logger.error(f"❌ [HILO CHECKOUT {product_id}] ERROR FATAL: Browser Manager no está corriendo.")
-                    await asyncio.sleep(5)
-                    continue
+                    logger.warning(f"🌐 [HILO CHECKOUT {product_id}] Browser no activo — Iniciando automáticamente...")
+                    try:
+                        await browser_manager.start()
+                        logger.info(f"✅ [HILO CHECKOUT {product_id}] Browser iniciado con éxito.")
+                    except Exception as browser_err:
+                        logger.error(f"❌ [HILO CHECKOUT {product_id}] No se pudo iniciar el browser: {browser_err}")
+                        await _log_action(db, product.id, product.name, "auto_purchase_failed", LogLevel.ERROR, f"Browser no pudo iniciarse: {browser_err}")
+                        await asyncio.sleep(10)
+                        continue
 
                 page = await browser_manager.get_page()
                 logger.info(f"⚡ [HILO CHECKOUT {product_id}] Disparando Playwright (Pidiendo {actual_target_qty}U)...")
@@ -234,12 +241,16 @@ async def process_single_product(product_id: int):
                         )
 
                 # TRIGGER CHECKOUT CONCURRENTLY
+                logger.debug(f"🔍 AUTO-BUY CHECK [{product.name}]: auto_buy={product.auto_buy}, total_available={stock_result.total_available}, min_trigger={product.min_stock_to_trigger}, already_attacking={product.id in active_checkout_tasks}")
                 if product.auto_buy and stock_result.total_available >= product.min_stock_to_trigger:
                     if product.id not in active_checkout_tasks:
-                        logger.warning(f"🚀 INICIANDO VUELO TÁCTICO AUTO-COMPRA PARA: {product.name}")
+                        logger.warning(f"🚀 INICIANDO VUELO TÁCTICO AUTO-COMPRA PARA: {product.name} (Stock: {stock_result.total_available}U >= Trigger: {product.min_stock_to_trigger}U)")
                         product.status = ProductStatus.PURCHASING
+                        await _log_action(db, product.id, product.name, "auto_engage_triggered", LogLevel.SUCCESS, f"Auto-engage disparado. Stock: {stock_result.total_available}U. Iniciando checkout...")
                         await db.commit()
                         active_checkout_tasks[product.id] = asyncio.create_task(persistent_checkout_loop(product.id))
+                    else:
+                        logger.debug(f"⏳ [{product.name}] Ya hay un hilo de checkout activo, saltando.")
             else:
                 if stock_result.error:
                     product.status = ProductStatus.ERROR

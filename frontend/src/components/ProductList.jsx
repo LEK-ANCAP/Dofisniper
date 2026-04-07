@@ -17,12 +17,42 @@ const STATUS_CONFIG = {
   waiting: { label: 'ESPERANDO DISPONIBILIDAD', border: 'border-amber-500 shadow-[0_0_15px_rgba(255,176,0,0.3)]', text: 'text-amber-500', icon: Target },
 };
 
-function TacticalBadge({ children, active, className="" }) {
+function TacticalBadge({ children, active, className="", onClick }) {
     return (
-        <span className={`inline-flex items-center gap-1.5 px-2 py-0.5 text-[10px] uppercase font-mono font-bold border tracking-wider ${active ? 'bg-brand-500/10 text-brand-400 border-brand-400/50 shadow-[0_0_8px_rgba(0,255,65,0.2)]' : 'bg-surface-900 border-surface-700 text-surface-500'} ${className}`}>
+        <span onClick={onClick} className={`inline-flex items-center gap-1.5 px-2 py-0.5 text-[10px] uppercase font-mono font-bold border tracking-wider ${active ? 'bg-brand-500/10 text-brand-400 border-brand-400/50 shadow-[0_0_8px_rgba(0,255,65,0.2)]' : 'bg-surface-900 border-surface-700 text-surface-500'} ${className}`}>
            {children}
         </span>
     )
+}
+
+function AutoBuyCountdown({ isActive, autoBuy, status }) {
+   const [secs, setSecs] = useState(10);
+   useEffect(() => {
+      if (!isActive || !autoBuy) return;
+      setSecs(10);
+      const t = setInterval(() => {
+         setSecs(s => s > 0 ? s - 1 : 10);
+      }, 1000);
+      return () => clearInterval(t);
+   }, [isActive, autoBuy]);
+
+   if (!isActive || !autoBuy) return null;
+   
+   if (status === 'purchasing') {
+      return (
+         <span className="flex items-center gap-1 text-[10px] text-red-400 border border-red-500/50 bg-red-500/20 px-2 py-0.5 font-mono tracking-widest uppercase ml-1 animate-pulse shadow-[0_0_10px_rgba(239,68,68,0.3)]">
+            <Crosshair size={10} className="animate-spin" /> ATACANDO...
+         </span>
+      );
+   }
+   
+   return (
+      <span className="flex items-center gap-1 text-[10px] text-amber-400 border border-amber-500/40 bg-amber-500/15 px-2 py-0.5 font-mono tracking-widest uppercase ml-1 shadow-[0_0_6px_rgba(245,158,11,0.15)]">
+         <Target size={10} className={secs < 3 ? 'animate-pulse text-red-400' : ''} />
+         <span>AUTO</span>
+         <span className={`font-bold ${secs < 3 ? 'text-red-400' : ''}`}>T-{secs}s</span>
+      </span>
+   );
 }
 
 function ScanCountdown({ isActive }) {
@@ -37,7 +67,7 @@ function ScanCountdown({ isActive }) {
 
    if (!isActive) return null;
    return (
-      <span className="flex items-center gap-1 text-[10px] text-amber-400 border border-amber-500/30 bg-amber-500/10 px-1 py-0.5 font-mono tracking-widest uppercase ml-2">
+      <span className="flex items-center gap-1 opacity-80 border-l border-brand-400/30 pl-1.5 ml-0.5">
          <RefreshCw size={10} className={`${secs < 3 ? 'animate-spin' : ''}`} /> T-{secs}S
       </span>
    );
@@ -67,9 +97,16 @@ function ProductItem({ product, i, onDelete, onToggle, onCheckout, onOpenEdit })
   const statusConf = STATUS_CONFIG[activeStatus] || STATUS_CONFIG.monitoring;
   const StatusIcon = statusConf.icon;
 
+  // Auto-open terminal when attack starts
+  useEffect(() => {
+     if (activeStatus === 'purchasing' && expandedTab !== 'snipe') {
+        setExpandedTab('snipe');
+     }
+  }, [activeStatus]);
+
   useEffect(() => {
     let interval;
-    if (expandedTab === 'snipe' || expandedTab === 'auto') {
+    if (expandedTab === 'snipe' || expandedTab === 'auto' || activeStatus === 'purchasing') {
       interval = setInterval(async () => {
         try {
           // Filtrar por ID de producto y aumentar límite para tener margen de filtrado local
@@ -221,12 +258,13 @@ function ProductItem({ product, i, onDelete, onToggle, onCheckout, onOpenEdit })
                <TacticalBadge 
                   active={product.is_active} 
                   className={`cursor-pointer hover:bg-brand-500/20 transition-colors ${activeStatus === 'purchasing' ? 'animate-pulse border-red-500 text-red-500 bg-red-500/10 shadow-[0_0_15px_rgba(239,68,68,0.3)]' : ''}`}
-                  onClick={() => { playTacticalClick(); setExpandedTab('snipe'); }}
+                  onClick={() => { playTacticalClick(); onToggle(product.id); }}
                >
                   <StatusIcon size={10} className={product.is_active ? (activeStatus === 'purchasing' ? 'text-red-500' : statusConf.text) : ''} /> 
                   {product.is_active ? (activeStatus === 'purchasing' ? 'ATACANDO OBJETIVO' : statusConf.label) : 'SUSPENDIDO'}
+                  <ScanCountdown isActive={product.is_active && !product.auto_buy} />
                </TacticalBadge>
-               <ScanCountdown isActive={product.is_active} />
+               <AutoBuyCountdown isActive={product.is_active} autoBuy={product.auto_buy} status={activeStatus} />
             </div>
 
             <div className="flex items-center gap-3 text-[10px] font-mono text-surface-300 mt-2">
@@ -262,9 +300,6 @@ function ProductItem({ product, i, onDelete, onToggle, onCheckout, onOpenEdit })
               </button>
            </div>
            <div className="flex gap-2 ml-auto sm:ml-0 mt-1">
-               <button onClick={() => { playTacticalClick(); onToggle(product.id); }} className={`p-2 border border-surface-600 hover:border-brand-400 transition-all ${product.is_active ? 'bg-brand-500/20' : 'bg-surface-800'}`} title={product.is_active ? 'SUSPENDER' : 'ACTIVAR RECON'}>
-                  {product.is_active ? <Pause size={16} className="text-amber-500" /> : <Play size={16} className="text-brand-400" />}
-               </button>
                <button onClick={() => { playTacticalClick(); onOpenEdit(product); }} className="p-2 border border-surface-600 bg-surface-800 hover:border-blue-500 hover:text-blue-400 transition-all text-surface-300" title="Editar Metadatos"><Edit3 size={16}/></button>
                <button onClick={() => { playTacticalClick(); onDelete(product.id); }} className="p-2 border border-surface-600 bg-surface-800 hover:border-red-500 hover:bg-red-500/10 transition-all text-surface-300 hover:text-red-500" title="Eliminar Objetivo"><Trash2 size={16}/></button>
            </div>
