@@ -12,7 +12,7 @@ import {
   toggleProduct, manualCheckout, clearLogs,
   fetchMe, fetchCategories, checkSessionFastStatus, forceLogin
 } from './utils/api';
-import { Crosshair, RefreshCw, Activity, Settings, BarChart2, LogOut, ShieldAlert, Ghost } from 'lucide-react';
+import { Crosshair, RefreshCw, Activity, Settings, BarChart2, LogOut, ShieldAlert, Ghost, Terminal } from 'lucide-react';
 import LoginPage from './pages/LoginPage';
 import { playTacticalClick } from './utils/tacticalAudio';
 
