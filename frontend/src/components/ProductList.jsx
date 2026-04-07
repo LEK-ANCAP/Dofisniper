@@ -709,6 +709,8 @@ export default function ProductList({ products, loading, onDelete, onToggle, onC
   const [editingProduct, setEditingProduct] = useState(null);
   const [analyticsProduct, setAnalyticsProduct] = useState(null);
   const [categories, setCategories] = useState([]);
+  const [catFilter, setCatFilter] = useState('all');
+  
   useEffect(()=>{
     fetchCategories().then(setCategories).catch(()=>{});
   }, []);
@@ -722,6 +724,12 @@ export default function ProductList({ products, loading, onDelete, onToggle, onC
       </div>
     );
   }
+
+  const filteredProducts = products.filter(p => {
+    if (catFilter === 'all') return true;
+    if (catFilter === 'null') return p.category_id === null;
+    return p.category_id === parseInt(catFilter);
+  });
 
   if (products.length === 0) {
     return (
@@ -791,10 +799,26 @@ export default function ProductList({ products, loading, onDelete, onToggle, onC
   return (
     <div className="space-y-4">
       {/* Header del panel de productos */}
-      <div className="flex justify-between items-center px-1">
-         <span className="text-xs font-semibold text-surface-400 uppercase tracking-widest">
-            {products.length} Objetivos
-         </span>
+      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 px-1">
+         <div className="flex items-center gap-4">
+           <span className="text-xs font-semibold text-surface-400 uppercase tracking-widest">
+              {filteredProducts.length} Objetivos
+           </span>
+           
+           {categories.length > 0 && (
+              <select
+                value={catFilter}
+                onChange={e => setCatFilter(e.target.value)}
+                className="bg-surface-800 border border-surface-700 text-xs text-surface-200 rounded-lg px-2 py-1.5 focus:border-brand-500 outline-none"
+              >
+                <option value="all">Todas las Categorías</option>
+                <option value="null">Sin Categoría</option>
+                {categories.map(c => (
+                  <option key={c.id} value={c.id}>{c.name}</option>
+                ))}
+              </select>
+           )}
+         </div>
          
          <div className="flex items-center gap-2">
            <input 
@@ -823,19 +847,25 @@ export default function ProductList({ products, loading, onDelete, onToggle, onC
       </div>
 
       <div className="space-y-2">
-        {products.map((product, i) => (
-          <ProductItem 
-            key={product.id}
-            product={product}
-            i={i}
-            onOpenModal={setSelectedProduct}
-            onOpenEdit={setEditingProduct}
-            onOpenAnalytics={setAnalyticsProduct}
-            onDelete={onDelete}
-            onToggle={onToggle}
-            onCheckout={onCheckout}
-          />
-        ))}
+        {filteredProducts.length === 0 ? (
+           <div className="text-center py-10 text-surface-400 text-sm">
+             No hay productos que coincidan con este filtro.
+           </div>
+        ) : (
+           filteredProducts.map((product, i) => (
+             <ProductItem 
+               key={product.id}
+               product={product}
+               i={i}
+               onOpenModal={setSelectedProduct}
+               onOpenEdit={setEditingProduct}
+               onOpenAnalytics={setAnalyticsProduct}
+               onDelete={onDelete}
+               onToggle={onToggle}
+               onCheckout={onCheckout}
+             />
+           ))
+        )}
       </div>
 
       

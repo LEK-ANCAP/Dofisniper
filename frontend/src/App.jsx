@@ -23,6 +23,7 @@ export default function App() {
   const [categories, setCategories] = useState([]);
   const [loading, setLoading] = useState(true);
   const [checking, setChecking] = useState(false);
+  const [showAddForm, setShowAddForm] = useState(false);
   const [tab, setTab] = useState('products');
   const [isAuthenticated, setIsAuthenticated] = useState(!!localStorage.getItem('sniper_token'));
 
@@ -69,6 +70,7 @@ export default function App() {
     try {
       await addProduct({ url, name: name || undefined, category_id });
       toast.success('Producto añadido');
+      setShowAddForm(false);
       await loadData();
     } catch (e) {
       toast.error(e.message);
@@ -83,6 +85,7 @@ export default function App() {
       });
       await addProductsBulk(productsToAdd);
       toast.success(`${productsToAdd.length} productos añadidos`);
+      setShowAddForm(false);
       await loadData();
     } catch (e) {
       toast.error(e.message);
@@ -210,11 +213,15 @@ export default function App() {
 
       <main className="max-w-7xl mx-auto px-4 sm:px-6 py-6 space-y-6">
         <StatsBar stats={stats} loading={loading} />
-        <AddProductForm onAdd={handleAddProduct} onAddBulk={handleAddBulk} categories={categories} />
+        
+        {showAddForm && (
+           <AddProductForm onAdd={handleAddProduct} onAddBulk={handleAddBulk} categories={categories} />
+        )}
 
-        <div className="flex gap-1 overflow-x-auto bg-surface-800/50 rounded-lg p-1 w-full sm:w-fit">
-          {[
-            { key: 'products', label: 'Productos', icon: Crosshair },
+        <div className="flex flex-col sm:flex-row gap-4 justify-between items-start sm:items-center">
+          <div className="flex gap-1 overflow-x-auto bg-surface-800/50 rounded-lg p-1 w-full sm:w-fit">
+            {[
+              { key: 'products', label: 'Productos', icon: Crosshair },
             { key: 'analytics', label: 'Analíticas', icon: BarChart2 },
             { key: 'logs', label: 'Actividad', icon: Activity },
             { key: 'config', label: 'Configuración', icon: Settings },
@@ -232,6 +239,15 @@ export default function App() {
               {label}
             </button>
           ))}
+          </div>
+          
+          <button 
+             onClick={() => setShowAddForm(!showAddForm)}
+             className={`flex items-center gap-2 px-4 py-2 rounded-lg font-medium text-sm transition-all whitespace-nowrap ${showAddForm ? 'bg-surface-700 text-white' : 'bg-brand-500/10 text-brand-400 hover:bg-brand-500/20 shadow-sm border border-brand-500/20'}`}
+          >
+             <Crosshair size={14} />
+             {showAddForm ? 'Ocultar Formulario' : 'Añadir Producto(s)'}
+          </button>
         </div>
 
         {tab === 'products' ? (
