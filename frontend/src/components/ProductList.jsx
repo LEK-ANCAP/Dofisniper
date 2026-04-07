@@ -128,7 +128,7 @@ function ProductItem({ product, i, onDelete, onToggle, onCheckout, onOpenEdit })
              }
           }
 
-          if (activeStatus === 'purchasing') {
+          if (activeStatus === 'purchasing' || isExecuting) {
             const data = await fetchLiveView(product.id);
             if (data && data.frame) setLiveFrame(data.frame);
           }
@@ -401,10 +401,18 @@ function ProductItem({ product, i, onDelete, onToggle, onCheckout, onOpenEdit })
                          <span className="text-[10px] font-mono uppercase tracking-widest flex items-center gap-2"><Crosshair size={14}/> AUTO-ENGAGE ON RECON</span>
                          <input type="checkbox" className="hidden" checked={product.auto_buy} onChange={async ()=>{
                              const newState = !product.auto_buy;
-                             await updateProduct(product.id, { auto_buy: newState });
-                             product.auto_buy = newState;
-                             onToggle(product.id, { preventBackend: true });
-                             toast.success(`AUTO-ENGAGE ${newState ? 'ONLINE' : 'OFFLINE'}`, { icon: newState ? '🎯' : '⏸️', style: { background: '#1e293b', color: newState?'#ffb000':'#94a3b8', border: newState?'1px solid #ffb000':'1px solid #334155' }});
+                             try {
+                                 const result = await updateProduct(product.id, { auto_buy: newState });
+                                 console.log('AUTO-BUY PATCH result:', result);
+                                 product.auto_buy = newState;
+                                 // Small delay to ensure DB flush before loadData refreshes
+                                 await new Promise(r => setTimeout(r, 300));
+                                 onToggle(product.id, { preventBackend: true });
+                                 toast.success(`AUTO-ENGAGE ${newState ? 'ONLINE' : 'OFFLINE'}`, { icon: newState ? '🎯' : '⏸️', style: { background: '#1e293b', color: newState?'#ffb000':'#94a3b8', border: newState?'1px solid #ffb000':'1px solid #334155' }});
+                             } catch(err) {
+                                 console.error('AUTO-BUY PATCH failed:', err);
+                                 toast.error(`Error activando autopilot: ${err.message}`, { style: { background: '#1e293b', color: '#ff003c', border: '1px solid #ff003c' }});
+                             }
                          }} />
                          <div className={`w-10 h-5 border flex items-center px-1 transition-colors ${product.auto_buy ? 'border-amber-500 bg-amber-500/20 justify-end' : 'border-surface-600 bg-surface-900 justify-start'}`}>
                             <div className={`w-4 h-4 shadow-sm ${product.auto_buy ? 'bg-amber-500 shadow-[0_0_10px_rgba(255,176,0,0.8)]' : 'bg-surface-600'}`} />

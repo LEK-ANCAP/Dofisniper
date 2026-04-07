@@ -78,6 +78,7 @@ async def get_product_analytics(
         })
         
     # ── FASE 2: Clasificar "Mi Compra" vs "Compra del Mercado" ──
+    matched_logs = set()
     for t in timeline:
         if t["volume_change"] < 0:
             # Hubo una bajada de stock. ¿Fuimos nosotros?
@@ -90,8 +91,9 @@ async def get_product_analytics(
                 time_diff = abs((t_time - l_time).total_seconds())
                 
                 # Si tenemos un log de compra muy cerca temporalmente del cambio de stock
-                if time_diff <= 90 and l.level == "success":
+                if time_diff <= 90 and l.level.value == "success":
                     is_my_purchase = True
+                    matched_logs.add(l.id)
                     break
             
             t["event_category"] = "my_purchase" if is_my_purchase else "market_purchase"
@@ -102,13 +104,14 @@ async def get_product_analytics(
     for t in timeline:
         del t["raw_timestamp"]
         
-    # Añadir logs huérfanos que no provocaron cambio de stock real (ej. Fallos)
+    # Añadir logs que no provocaron cambio de stock real emparejado (ej. Fallos, o compras recientes)
     for l in log_records:
-        if l.level != "success":
+        if l.id not in matched_logs:
+            cat = "my_purchase" if l.level.value == "success" else "failed_purchase"
             timeline.append({
                 "type": "event",
                 "timestamp": l.created_at.replace(tzinfo=timezone.utc).isoformat() if l.created_at.tzinfo is None else l.created_at.isoformat(),
-                "event_category": "failed_purchase",
+                "event_category": cat,
                 "message": l.message
             })
 

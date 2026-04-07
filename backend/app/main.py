@@ -185,14 +185,25 @@ async def process_single_product(product_id: int):
             if stock_result.image_url:
                 product.image_url = stock_result.image_url
 
-            # Snapshot for intelligence
-            snapshot = ProductSnapshot(
-                product_id=product.id,
-                stock_quantity=stock_result.warehouse_stock,
-                transit_quantity=stock_result.transit_stock
-            )
-            db.add(snapshot)
-            asyncio.create_task(calculate_product_analytics(product.id, db))
+            # Snapshot for intelligence (fire-and-forget, isolated session)
+            try:
+                snapshot = ProductSnapshot(
+                    product_id=product.id,
+                    stock_quantity=stock_result.warehouse_stock,
+                    transit_quantity=stock_result.transit_stock
+                )
+                db.add(snapshot)
+            except Exception:
+                pass
+            
+            # Analytics in background with its own session (don't crash main loop)
+            async def _safe_analytics(pid):
+                try:
+                    async with async_session() as analytics_db:
+                        await calculate_product_analytics(pid, analytics_db)
+                except Exception:
+                    pass
+            asyncio.create_task(_safe_analytics(product.id))
             
             # Stock changes
             delta_warehouse = stock_result.warehouse_stock - product.warehouse_stock
@@ -241,7 +252,7 @@ async def process_single_product(product_id: int):
                         )
 
                 # TRIGGER CHECKOUT CONCURRENTLY
-                logger.debug(f"🔍 AUTO-BUY CHECK [{product.name}]: auto_buy={product.auto_buy}, total_available={stock_result.total_available}, min_trigger={product.min_stock_to_trigger}, already_attacking={product.id in active_checkout_tasks}")
+                logger.info(f"🔍 AUTO-BUY CHECK [{product.name}]: auto_buy={product.auto_buy}, total_available={stock_result.total_available}, min_trigger={product.min_stock_to_trigger}, already_attacking={product.id in active_checkout_tasks}")
                 if product.auto_buy and stock_result.total_available >= product.min_stock_to_trigger:
                     if product.id not in active_checkout_tasks:
                         logger.warning(f"🚀 INICIANDO VUELO TÁCTICO AUTO-COMPRA PARA: {product.name} (Stock: {stock_result.total_available}U >= Trigger: {product.min_stock_to_trigger}U)")
