@@ -216,8 +216,8 @@ export default function App() {
             <div className="flex items-center gap-2 px-3 py-1.5 border border-surface-700 bg-surface-800  text-[10px] tracking-wider uppercase">
               {sessionActive ? (
                 <>
-                  <Activity size={12} className="text-brand-400 animate-pulse" />
-                  <span className="hidden sm:inline text-brand-400 font-bold">[ UPLINK_SECURE ]</span>
+                  <Ghost size={12} className="text-brand-400 animate-pulse" />
+                  <span className="hidden sm:inline text-brand-400 font-bold">[ OPERATIVO_INFILTRADO ]</span>
                 </>
               ) : (
                 <>

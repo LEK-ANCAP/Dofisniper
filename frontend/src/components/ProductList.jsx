@@ -1,6 +1,6 @@
 import {
   Trash2, Pause, Play, ExternalLink,
-  ShoppingCart, AlertTriangle, Package, Edit3, BarChart, X, target, Zap, Target, Eye, Database, Crosshair, Terminal, Camera, Activity, Download, Upload, MapPin
+  ShoppingCart, AlertTriangle, Package, Edit3, BarChart, X, target, Zap, Target, Eye, Database, Crosshair, Terminal, Camera, Activity, Download, Upload, MapPin, Truck
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { updateProduct, manualCheckout, fetchLogs, fetchLiveView, fetchProductHistory, fetchCategories } from '../utils/api';
@@ -57,7 +57,16 @@ function ProductItem({ product, i, onDelete, onToggle, onCheckout, onOpenEdit })
         }).catch(()=>{});
     } else if (expandedTab === 'analytics' && !analyticsLoaded) {
         fetchProductHistory(product.id).then(res => {
-            setHistory(Array.isArray(res) ? res : res.history || []);
+            if (res.labels && res.datasets) {
+                const mappedHistory = res.labels.map((label, idx) => ({
+                    timestamp: label,
+                    warehouse_stock: res.datasets.warehouse[idx],
+                    transit_stock: res.datasets.transit[idx]
+                })).reverse();
+                setHistory(mappedHistory);
+            } else {
+                setHistory(Array.isArray(res) ? res : res.history || []);
+            }
             setAnalyticsLoaded(true);
         }).catch(()=>{});
     }
@@ -120,56 +129,52 @@ function ProductItem({ product, i, onDelete, onToggle, onCheckout, onOpenEdit })
       {/* Header Visible (Compact) */}
       <div className="p-3 sm:p-4 flex flex-col sm:flex-row gap-4 items-start sm:items-center relative z-20">
         {/* Imagen HUD */}
-        <div className="relative w-16 h-16 bg-surface-900 border border-brand-400/30 flex-shrink-0 overflow-hidden group">
-           <div className="absolute inset-0 bg-brand-500/10 z-10 pointer-events-none ring-1 ring-inset ring-brand-400/20"></div>
+        <div className="relative w-16 h-16 border border-brand-400/30 flex-shrink-0 overflow-hidden group">
+           {product.category && (
+             <div className="absolute top-0 left-0 text-[8px] bg-surface-900/90 text-brand-400 px-1 z-20 border-b border-r border-brand-400/30 uppercase tracking-widest font-bold">
+               [{product.category.name}]
+             </div>
+           )}
            {/* Scope crosshair minimal */}
-           <div className="absolute inset-0 flex items-center justify-center z-10 opacity-50 pointer-events-none">
+           <div className="absolute inset-0 flex items-center justify-center z-10 opacity-30 pointer-events-none">
               <div className="w-1/2 h-px bg-brand-400"></div>
               <div className="absolute h-1/2 w-px bg-brand-400"></div>
            </div>
            {product.image_url ? (
-             <img src={`/api/products/image-proxy?url=${encodeURIComponent(product.image_url)}`} className="w-full h-full object-cover filter contrast-125 saturate-50 mix-blend-screen opacity-80" alt="Target" />
+             <img src={`/api/products/image-proxy?url=${encodeURIComponent(product.image_url)}`} className="w-full h-full object-cover mix-blend-screen opacity-90" alt="Target" />
            ) : <Crosshair className="text-brand-400/50 absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2" />}
         </div>
 
         {/* Info */}
         <div className="flex-1 min-w-0 ">
            <div className="flex items-center gap-2 mb-1 flex-wrap">
-              <h3 className="text-white font-bold text-sm truncate uppercase tracking-tight mr-2" style={{ textShadow: '0 0 8px rgba(255,255,255,0.2)' }}>
+              <h3 className="text-white font-bold text-sm truncate uppercase tracking-tight" style={{ textShadow: '0 0 8px rgba(255,255,255,0.2)' }}>
                  {product.name || 'TARGET_UNKNOWN_ID'}
               </h3>
               
+              <a href={product.url} target="_blank" rel="noopener noreferrer" className="flex items-center gap-1 text-xs text-brand-400 hover:text-white transition-colors uppercase cursor-pointer border border-brand-400/30 px-2 py-0.5" title="Ver Objetivo (External)">
+                 <ExternalLink size={12} /> TARGET_URL
+              </a>
+
               {/* Badges */}
               <TacticalBadge active={product.is_active}>
                  <StatusIcon size={10} className={product.is_active ? statusConf.text : ''} /> 
                  {product.is_active ? statusConf.label : 'SUSPENDIDO'}
               </TacticalBadge>
-              
-              {/* Disponibilidad */}
-              {(totalStock > 0) && (
-                 <span className="inline-flex items-center gap-1 text-[10px] font-bold text-surface-900 bg-emerald-500 px-2 py-0.5 tracking-wider">
-                     <Package size={10}/> TOTAL: {totalStock}U
-                 </span>
-              )}
-
-              {/* Categoría */}
-              {product.category && (
-                <span className="text-[9px] text-brand-400/40 border border-brand-400/20 px-1 py-0.5 uppercase tracking-wide">
-                  [{product.category.name}]
-                </span>
-              )}
            </div>
 
            <div className="flex items-center gap-3 text-xs text-surface-300 mt-2">
-              <span className="text-brand-400 font-bold bg-brand-500/10 px-2 py-1 border border-brand-400/30 flex items-center gap-1">
-                 LOCAL: {product.warehouse_stock || 0}
+              <span className={`font-bold px-2 py-1 border flex items-center gap-1 ${product.warehouse_stock > 0 ? 'text-emerald-400 border-emerald-400/30 bg-emerald-500/10' : 'text-surface-500 border-surface-700 bg-surface-800'}`}>
+                 <MapPin size={12} /> LOCAL: {product.warehouse_stock || 0}
               </span>
-              <span className="text-blue-400 font-bold bg-blue-500/10 px-2 py-1 border border-blue-500/30 flex items-center gap-1">
-                 TRANSIT: {product.transit_stock || 0}
+              <span className={`font-bold px-2 py-1 border flex items-center gap-1 ${product.transit_stock > 0 ? 'text-emerald-400 border-emerald-400/30 bg-emerald-500/10' : 'text-surface-500 border-surface-700 bg-surface-800'}`}>
+                 <Truck size={12} /> TRANSIT: {product.transit_stock || 0}
               </span>
-              <a href={product.url} target="_blank" rel="noopener noreferrer" className="ml-auto flex items-center gap-1 text-surface-400 hover:text-brand-400 transition-colors uppercase cursor-pointer bg-surface-900 border border-surface-600 px-3 py-1 flex-shrink-0" title="Ver Objetivo (External)">
-                 <ExternalLink size={12} /> TARGET_URL
-              </a>
+              {(totalStock > 0) && (
+                 <span className="inline-flex items-center gap-1 text-[10px] font-bold text-surface-900 bg-emerald-500 px-2 py-1 tracking-wider">
+                     <Package size={10}/> TOTAL: {totalStock}U
+                 </span>
+              )}
            </div>
         </div>
 
@@ -177,8 +182,12 @@ function ProductItem({ product, i, onDelete, onToggle, onCheckout, onOpenEdit })
         <div className="flex sm:flex-col items-center sm:items-end gap-2 w-full sm:w-auto relative z-20">
            {/* Control de Tabs Navigación */}
            <div className="flex bg-surface-900 p-0.5 border border-surface-700">
-              <button onMouseEnter={() => playTacticalClick(0.01)} onClick={() => { playTacticalClick(); setExpandedTab(expandedTab === 'lz' ? null : 'lz'); }} className={`p-2 text-xs  uppercase tracking-wider transition-colors ${expandedTab === 'lz' ? 'bg-brand-400 text-surface-900 font-bold border border-brand-400' : 'text-brand-400/70 hover:bg-brand-500/20 hover:text-brand-400 border border-transparent'}`}>LZ_ALMACENES</button>
-              <button onMouseEnter={() => playTacticalClick(0.01)} onClick={() => { playTacticalClick(); setExpandedTab(expandedTab === 'analytics' ? null : 'analytics'); }} className={`p-2 text-xs  uppercase tracking-wider transition-colors ${expandedTab === 'analytics' ? 'bg-brand-400 text-surface-900 font-bold border border-brand-400' : 'text-brand-400/70 hover:bg-brand-500/20 hover:text-brand-400 border border-transparent'}`}>INTEL</button>
+              <button onMouseEnter={() => playTacticalClick(0.01)} onClick={() => { playTacticalClick(); setExpandedTab(expandedTab === 'lz' ? null : 'lz'); }} className={`p-2 flex items-center gap-2 text-xs  uppercase tracking-wider transition-colors ${expandedTab === 'lz' ? 'bg-brand-400 text-surface-900 font-bold border border-brand-400' : 'text-brand-400/70 hover:bg-brand-500/20 hover:text-brand-400 border border-transparent'}`}>
+                 <MapPin size={16} className={expandedTab==='lz'?'text-surface-900':'text-brand-400'} /> ALMACENES
+              </button>
+              <button onMouseEnter={() => playTacticalClick(0.01)} onClick={() => { playTacticalClick(); setExpandedTab(expandedTab === 'analytics' ? null : 'analytics'); }} className={`p-2 flex items-center gap-2 text-xs  uppercase tracking-wider transition-colors ${expandedTab === 'analytics' ? 'bg-brand-400 text-surface-900 font-bold border border-brand-400' : 'text-brand-400/70 hover:bg-brand-500/20 hover:text-brand-400 border border-transparent'}`}>
+                 <Database size={16} className={expandedTab==='analytics'?'text-surface-900':'text-brand-400'} /> INTEL
+              </button>
               <button onMouseEnter={() => playTacticalClick(0.01)} onClick={() => { playTacticalClick(); setExpandedTab(expandedTab === 'snipe' ? null : 'snipe'); }} className={`p-2 flex items-center gap-2 text-xs  uppercase tracking-wider transition-colors ${expandedTab === 'snipe' ? 'bg-red-500 text-surface-900 font-bold border border-red-500' : 'text-red-500/70 hover:bg-red-500/20 hover:text-red-500 border border-transparent'}`}>
                  <Target size={16} className={expandedTab==='snipe'?'text-surface-900':'text-red-500'} /> FORCE_CMD
               </button>
@@ -208,9 +217,13 @@ function ProductItem({ product, i, onDelete, onToggle, onCheckout, onOpenEdit })
                         {product.warehouse_breakdown.map((w, index) => (
                            <div key={index} className="bg-surface-800 border border-surface-700 p-3 flex items-center justify-between group hover:border-brand-400">
                               <span className="text-xs text-surface-300 truncate w-1/2 pr-2 leading-tight uppercase group-hover:text-white transition-colors">{w.name} ({w.area})</span>
-                              <div className="flex items-center gap-2 text-xs flex-shrink-0">
-                                 <span className={`px-2 py-1 border ${w.warehouse_stock>0?'border-brand-400 text-brand-400 bg-brand-500/10 font-bold':'border-surface-700 text-surface-500'}`}>LOCAL: {w.warehouse_stock}</span>
-                                 <span className={`px-2 py-1 border ${w.transit_stock>0?'border-blue-500 text-blue-400 bg-blue-500/10 font-bold':'border-surface-700 text-surface-500'}`}>TRANS: {w.transit_stock}</span>
+                              <div className="flex items-center gap-2 text-[10px] flex-shrink-0">
+                                 <span className={`px-2 py-1 border flex items-center gap-1 ${w.warehouse_stock > 0 ? 'border-emerald-400/50 text-emerald-400 bg-emerald-500/10 font-bold' : 'border-surface-700 text-surface-500 bg-surface-900/50'}`}>
+                                    <MapPin size={10} className="hidden sm:block" />LOCAL: {w.warehouse_stock}
+                                 </span>
+                                 <span className={`px-2 py-1 border flex items-center gap-1 ${w.transit_stock > 0 ? 'border-emerald-400/50 text-emerald-400 bg-emerald-500/10 font-bold' : 'border-surface-700 text-surface-500 bg-surface-900/50'}`}>
+                                    <Truck size={10} className="hidden sm:block" />TRANS: {w.transit_stock}
+                                 </span>
                               </div>
                            </div>
                         ))}
@@ -229,7 +242,7 @@ function ProductItem({ product, i, onDelete, onToggle, onCheckout, onOpenEdit })
                      <div className="space-y-1 h-48 overflow-y-auto custom-scrollbar pr-2">
                         {history.map((row, index) => (
                            <div key={index} className="flex justify-between items-center text-xs p-2 bg-surface-900 border border-surface-700 text-surface-300  hover:bg-surface-800 hover:text-white transition-colors">
-                             <span className="text-brand-400/70">{new Date(row.timestamp || row.created_at).toLocaleString('en-US',{hour12:false})}</span>
+                             <span className="text-brand-400/70">{row.timestamp || row.created_at}</span>
                              <div className="flex gap-4">
                                <span className="text-brand-400 font-bold">{row.warehouse_stock} LOCAL</span>
                                <span className="text-blue-400 font-bold">{row.transit_stock} TRANS</span>

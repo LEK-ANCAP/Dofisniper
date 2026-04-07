@@ -173,24 +173,26 @@ export default function ConfigPanel() {
   }
 
   return (
-    <div className="bg-surface-800 rounded-xl border border-surface-700/50 p-6 shadow-sm">
-      <div className="flex items-center justify-between mb-6">
+    <div className="bg-surface-900 border border-surface-700 p-6 relative">
+      <div className="absolute top-0 left-0 w-full h-1 bg-[linear-gradient(90deg,var(--color-brand-400)_0%,transparent_100%)] opacity-20"></div>
+      <div className="flex items-center justify-between mb-8 pb-4 border-b border-surface-700/50">
         <div className="flex items-center gap-3 text-brand-400">
           <Settings size={20} />
-          <h2 className="font-semibold text-white tracking-wide">Configuración del Sistema</h2>
+          <h2 className="font-bold text-white tracking-widest uppercase text-sm">Configuración del Sistema</h2>
         </div>
       </div>
 
       <div className="flex flex-col gap-6">
         {/* Notificaciones globales */}
-        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between p-4 bg-surface-900 rounded-lg border border-surface-700">
+        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between p-4 bg-surface-800 border border-surface-700 relative overflow-hidden group">
+          <div className="absolute top-0 left-0 w-1 h-full bg-brand-400 opacity-50"></div>
           <div className="flex items-start gap-4 mb-4 sm:mb-0">
-            <div className={`p-3 rounded-full ${enabled ? 'bg-brand-500/20 text-brand-400' : 'bg-surface-700 text-surface-400'}`}>
-              <Bell size={24} />
+            <div className={`p-3 border border-brand-400/30 ${enabled ? 'bg-brand-500/10 text-brand-400' : 'bg-surface-800 text-surface-500'}`}>
+              <Bell size={18} />
             </div>
             <div>
-              <h3 className="font-medium text-white text-md">Notificaciones de Stock</h3>
-              <p className="text-surface-400 text-sm mt-1 max-w-md">
+              <h3 className="font-bold text-white text-[11px] tracking-widest uppercase">Notificaciones de Stock</h3>
+              <p className="text-surface-400 text-[11px] mt-1 max-w-md font-mono">
                 Activa o desactiva el envío automático de notificaciones a Telegram / Email cuando se detecta un stock mayor a cero (en tránsito o almacén).
               </p>
             </div>
@@ -203,98 +205,101 @@ export default function ConfigPanel() {
         </div>
 
         {/* Prueba */}
-        <div className="flex flex-col sm:flex-row items-center justify-between p-4 bg-surface-900 rounded-lg border border-surface-700">
+        <div className="flex flex-col sm:flex-row items-center justify-between p-4 bg-surface-800 border border-surface-700 relative overflow-hidden">
+             <div className="absolute top-0 left-0 w-1 h-full bg-surface-500 opacity-50"></div>
              <div>
-              <h3 className="font-medium text-white text-md">Prueba de Envío</h3>
-              <p className="text-surface-400 text-sm mt-1 max-w-md">
+              <h3 className="font-bold text-white text-[11px] tracking-widest uppercase ml-4">Prueba de Envío</h3>
+              <p className="text-surface-400 text-[11px] mt-1 max-w-md font-mono ml-4">
                 Asegúrate de que tus credenciales funcionen enviando un mensaje directo.
               </p>
             </div>
             <button
                 onClick={handleTest}
-                className="mt-4 sm:mt-0 flex items-center gap-2 px-6 py-2 rounded-lg bg-surface-700 hover:bg-surface-600 text-white font-medium transition-colors"
+                className="mt-4 sm:mt-0 flex items-center gap-2 px-6 py-2 border border-surface-600 hover:border-brand-400 bg-surface-900 hover:bg-brand-500/10 text-white font-bold tracking-widest uppercase text-[10px] transition-colors"
             >
-                <Send size={16} />
-                Mandar notificación de prueba
+                <Send size={14} />
+                ENVIAR SEÑAL
             </button>
         </div>
 
         {/* Credenciales DofiMall */}
-        <div className="flex flex-col p-5 bg-surface-900 rounded-lg border border-surface-700">
+        <div className="flex flex-col p-5 bg-surface-800 border border-surface-700 relative overflow-hidden">
+             <div className="absolute top-0 left-0 w-1 h-full bg-blue-500 opacity-50"></div>
              <div className="flex items-start gap-4 mb-4">
-              <div className="p-3 rounded-full bg-indigo-500/20 text-indigo-400">
-                <Shield size={24} />
+              <div className="p-3 border border-blue-500/30 bg-blue-500/10 text-blue-400 ml-2">
+                <Shield size={18} />
               </div>
               <div>
-                <h3 className="font-medium text-white text-md">Credenciales Auto-Login (Sniper Bot)</h3>
-                <p className="text-surface-400 text-sm mt-1">
-                  Introduce tu correo y contraseña maestros. El bot los usará, junto a un <b>bypasser OCR de IA</b>, para iniciar sesión por ti si detecta que DofiMall intenta bloquearlo con Captchas mientras caza stock de noche.
+                <h3 className="font-bold text-white text-[11px] tracking-widest uppercase">Credenciales Auto-Login (Sniper Bot)</h3>
+                <p className="text-surface-400 text-[11px] mt-1 font-mono">
+                  Introduce tu correo y contraseña maestros. El bot los usará, junto a un <b>bypasser OCR de IA</b>, para iniciar sesión por ti de forma invisible.
                 </p>
               </div>
             </div>
 
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mt-2">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mt-2 ml-2">
                <div>
-                  <label className="block text-xs font-semibold text-surface-400 mb-2 uppercase tracking-wide">Email de DofiMall</label>
+                  <label className="block text-[10px] font-bold text-brand-400 mb-2 uppercase tracking-widest">Email de DofiMall</label>
                   <input
                     type="email"
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
-                    placeholder="delavegadeus@gmail.com"
-                    className="w-full bg-surface-800 border border-surface-700 rounded-lg px-4 py-2.5 text-white placeholder:text-surface-500 focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500 transition-all font-mono text-sm"
+                    placeholder="operativo@ejemplo.com"
+                    className="w-full bg-surface-900 border border-brand-400/30 px-4 py-2 text-white placeholder:text-surface-600 focus:border-brand-400 focus:outline-none focus:ring-1 focus:ring-brand-400 transition-all font-mono text-xs"
                   />
                </div>
                <div>
-                  <label className="block text-xs font-semibold text-surface-400 mb-2 uppercase tracking-wide">Contraseña Maestra</label>
+                  <label className="block text-[10px] font-bold text-brand-400 mb-2 uppercase tracking-widest">Contraseña Maestra</label>
                   <input
                     type="password"
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
                     placeholder="••••••••••••"
-                    className="w-full bg-surface-800 border border-surface-700 rounded-lg px-4 py-2.5 text-white placeholder:text-surface-500 focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500 transition-all font-mono text-sm"
+                    className="w-full bg-surface-900 border border-brand-400/30 px-4 py-2 text-white placeholder:text-surface-600 focus:border-brand-400 focus:outline-none focus:ring-1 focus:ring-brand-400 transition-all font-mono text-xs"
                   />
                </div>
             </div>
             
-            <div className="mt-5 flex justify-end gap-3">
+            <div className="mt-5 flex justify-end gap-3 ml-2">
               <button
                 onClick={handleLogout}
-                className="flex items-center gap-2 px-5 py-2.5 rounded-lg border border-red-500/30 text-red-500 hover:bg-red-500/10 font-semibold transition-colors shadow-sm"
+                className="flex items-center gap-2 px-5 py-2 border border-red-500/30 text-red-500 hover:bg-red-500/10 font-bold text-[10px] uppercase tracking-widest transition-colors"
               >
-                Cerrar Sesión Actual
+                CERRAR SESIÓN
               </button>
               <button
                 onClick={saveCredentials}
-                className="flex items-center gap-2 px-5 py-2.5 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white font-semibold transition-colors shadow-lg shadow-indigo-900/20"
+                className="flex items-center gap-2 px-5 py-2 bg-blue-500/10 border border-blue-500/50 hover:bg-blue-500/20 text-blue-400 font-bold text-[10px] uppercase tracking-widest transition-colors"
               >
-                <UserCheck size={16} />
-                Guardar y Activar Auto-Snipe en Ciegos
+                <UserCheck size={14} />
+                GUARDAR Y ACTIVAR AUTO-SNIPE
               </button>
             </div>
         </div>
 
         {/* Keep-Alive */}
-        <div className="flex flex-col p-4 bg-surface-900 rounded-lg border border-surface-700">
+        <div className="flex flex-col p-4 bg-surface-800 border border-surface-700 relative overflow-hidden">
+           <div className="absolute top-0 left-0 w-1 h-full bg-amber-500 opacity-50"></div>
            <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between mb-2">
               <div className="flex items-start gap-4 mb-4 sm:mb-0">
-                <div className={`relative p-3 rounded-full ${keepAliveEnabled ? 'bg-amber-500/20 text-amber-400' : 'bg-surface-700 text-surface-400'}`}>
-                  <Shield size={24} />
+                <div className={`relative p-3 border border-amber-500/30 ml-2 ${keepAliveEnabled ? 'bg-amber-500/10 text-amber-400' : 'bg-surface-800 text-surface-500'}`}>
+                  <Shield size={18} />
                   {!sessionStatus.checking && (
-                    <div className={`absolute bottom-0 right-0 w-3 h-3 rounded-full border-2 border-surface-900 ${sessionStatus.active ? 'bg-emerald-500' : 'bg-red-500'}`} title={sessionStatus.active ? 'Sesión Viva' : 'Sesión Caducada'}></div>
+                    <div className={`absolute -bottom-1 -right-1 w-3 h-3 border-2 border-surface-900 ${sessionStatus.active ? 'bg-emerald-500' : 'bg-red-500'}`} title={sessionStatus.active ? 'Sesión Viva' : 'Sesión Caducada'}></div>
                   )}
                 </div>
                 <div>
-                  <h3 className="font-medium text-white text-md flex items-center gap-2">
+                  <h3 className="font-bold text-white text-[11px] tracking-widest uppercase flex items-center gap-2">
                      Keep-Alive (Anti-Cierre de Sesión)
                      {sessionStatus.checking ? (
-                        <span className="text-[10px] bg-brand-500/20 text-brand-400 px-1.5 py-0.5 rounded animate-pulse">Comprobando...</span>
+                        <span className="text-[9px] bg-brand-500/20 border border-brand-500/50 text-brand-400 px-1.5 py-0.5 animate-pulse">COMPROBANDO</span>
                      ) : sessionStatus.active ? (
-                        <span className="text-[10px] bg-emerald-500/20 text-emerald-400 px-1.5 py-0.5 rounded border border-emerald-500/30">ACTIVA</span>
+                        <span className="text-[9px] bg-emerald-500/20 text-emerald-400 px-1.5 py-0.5 border border-emerald-500/30">ACTIVA</span>
                      ) : (
-                        <span className="text-[10px] bg-red-500/20 text-red-400 px-1.5 py-0.5 rounded border border-red-500/30">EXPIRADA</span>
+                        <span className="text-[9px] bg-red-500/20 text-red-400 px-1.5 py-0.5 border border-red-500/30">EXPIRADA</span>
                      )}
                   </h3>
-                  <p className="text-surface-400 text-sm mt-1 max-w-md">
+                  <p className="text-surface-400 text-[11px] mt-1 max-w-md font-mono">
                     Evita que DofiMall caduque tu sesión visitando el carrito en 2º plano silenciosamente cada 5 minutos.
                   </p>
                 </div>
@@ -310,122 +315,126 @@ export default function ConfigPanel() {
                <button 
                   onClick={handleForceLoginTrigger}
                   disabled={sessionStatus.checking}
-                  className="px-4 py-2 bg-surface-800 hover:bg-surface-700 text-xs font-semibold text-white rounded border border-surface-600 transition-colors disabled:opacity-50"
+                  className="px-4 py-2 border border-surface-600 bg-surface-900 hover:border-amber-400 text-[10px] tracking-widest uppercase font-bold text-white transition-colors disabled:opacity-50"
                >
-                  ¿Sesión expirada? Escanear y forzar inyección ahora
+                  FORZAR INYECCIÓN AHORA
                </button>
            </div>
         </div>
 
         {/* Frecuencia de Escaneo */}
-        <div className="flex flex-col p-4 bg-surface-900 rounded-lg border border-surface-700">
-           <div className="flex flex-col mb-2">
+        <div className="flex flex-col p-4 bg-surface-800 border border-surface-700 relative overflow-hidden">
+           <div className="absolute top-0 left-0 w-1 h-full bg-cyan-500 opacity-50"></div>
+           <div className="flex flex-col mb-2 ml-2">
               <div className="flex items-start gap-4 mb-4">
-                <div className="p-3 rounded-full bg-cyan-500/20 text-cyan-400">
-                  <Activity size={24} />
+                <div className="p-3 border border-cyan-500/30 bg-cyan-500/10 text-cyan-400">
+                  <Activity size={18} />
                 </div>
                 <div>
-                  <h3 className="font-medium text-white text-md flex items-center gap-2">
-                     Frecuencia de Monitorización Concurrente
+                  <h3 className="font-bold text-white text-[11px] tracking-widest uppercase flex items-center gap-2">
+                     Frecuencia de Escaneo
                   </h3>
-                  <p className="text-surface-400 text-sm mt-1 max-w-md">
-                    Controla cuántos segundos espera cada hilo independiente entre peticiones a DofiMall. Tiempos muy bajos pueden ser bloqueados por rate-limit.
+                  <p className="text-surface-400 text-[11px] mt-1 max-w-md font-mono">
+                    Controla cuántos segundos espera cada hilo independiente entre peticiones.
                   </p>
                 </div>
               </div>
            </div>
            
-           <div className="flex items-center gap-4">
+           <div className="flex items-center gap-4 ml-14">
               <input 
                 type="range" 
                 min="3" 
                 max="60" 
                 value={scanInterval} 
                 onChange={handleScanIntervalChange} 
-                className="w-full h-2 bg-surface-700 rounded-lg appearance-none cursor-pointer accent-cyan-500"
+                className="w-full h-1 bg-surface-700 appearance-none cursor-pointer accent-cyan-500"
               />
               <span className="text-cyan-400 font-mono font-bold w-16 text-right whitespace-nowrap">{scanInterval} seg</span>
               <button
                 onClick={saveScanInterval}
-                className="ml-2 px-4 py-2 bg-cyan-600 hover:bg-cyan-500 text-white font-semibold rounded-lg text-sm transition-colors shadow-sm whitespace-nowrap"
+                className="ml-2 px-4 py-2 border border-cyan-500/30 bg-cyan-500/10 hover:bg-cyan-500/20 text-cyan-400 font-bold text-[10px] tracking-widest uppercase transition-colors whitespace-nowrap"
               >
-                 Aplicar
+                 APLICAR
               </button>
            </div>
         </div>
 
         {/* Categories */}
-        <div className="flex flex-col p-5 bg-surface-900 rounded-lg border border-surface-700 shadow-md">
-          <div className="flex items-start gap-4 mb-4 border-b border-surface-700/50 pb-4">
-            <div className="p-3 rounded-full bg-brand-500/20 text-brand-400">
-              <Tag size={24} />
+        <div className="flex flex-col p-5 bg-surface-800 border border-surface-700 relative overflow-hidden">
+          <div className="absolute top-0 left-0 w-1 h-full bg-purple-500 opacity-50"></div>
+          <div className="flex items-start gap-4 mb-4 border-b border-surface-700/50 pb-4 ml-2">
+            <div className="p-3 border border-purple-500/30 bg-purple-500/10 text-purple-400">
+              <Tag size={18} />
             </div>
             <div className="flex-1">
               <div className="flex justify-between items-start">
                   <div>
-                      <h3 className="font-medium text-white text-md">Categorías de Analíticas (Market Intelligence)</h3>
-                      <p className="text-surface-400 text-sm mt-1 max-w-lg">
-                        Define las familias logísticas a las que pertenecen tus enlaces (ej: "Solares", "Electrodomésticos"). En el nuevo Dashboard avanzado de inteligencia estadística se separará el volumen en tránsito de acuerdo a estos grupos.
+                      <h3 className="font-bold text-white text-[11px] tracking-widest uppercase">Categorías de Analíticas</h3>
+                      <p className="text-surface-400 text-[11px] font-mono mt-1 max-w-lg">
+                        Define las familias logísticas a las que pertenecen tus enlaces (ej: "Solares").
                       </p>
                   </div>
               </div>
             </div>
           </div>
           
-          <div className="flex items-end gap-3 mb-5 mt-2 bg-surface-800 p-3 rounded-lg border border-surface-700">
-             <div className="flex-1">
-                <label className="block text-xs font-semibold text-surface-400 mb-1 uppercase tracking-wide">Nueva Categoría</label>
+          <div className="flex flex-col sm:flex-row items-end gap-3 mb-5 mt-2 bg-surface-900/50 p-3 border border-surface-700 ml-2">
+             <div className="flex-1 w-full">
+                <label className="block text-[10px] font-bold text-brand-400 mb-1 uppercase tracking-widest">NUEVA CATEGORÍA</label>
                 <input
                     type="text"
                     value={newCategoryName}
                     onChange={(e) => setNewCategoryName(e.target.value)}
-                    placeholder="Ej. Baterías 48v, Motos, Cemento..."
-                    className="w-full bg-surface-900 border border-surface-700 rounded-lg px-4 py-2.5 text-white placeholder:text-surface-500 focus:border-brand-500 focus:outline-none focus:ring-1 focus:ring-brand-500 transition-all font-medium text-sm"
+                    placeholder="Baterías..."
+                    className="w-full bg-surface-900 border border-brand-400/30 px-4 py-2 text-white placeholder:text-surface-600 focus:border-brand-400 focus:outline-none focus:ring-1 focus:ring-brand-400 transition-all font-mono text-xs"
                 />
              </div>
              <div>
-                <label className="block text-xs font-semibold text-surface-400 mb-1 uppercase tracking-wide">Color</label>
-                <div className="h-[42px] px-2 bg-surface-900 border border-surface-700 rounded-lg flex items-center justify-center cursor-pointer">
+                <label className="block text-[10px] font-bold text-brand-400 mb-1 uppercase tracking-widest">COLOR_HEX</label>
+                <div className="h-[34px] px-2 bg-surface-900 border border-brand-400/30 flex items-center justify-center cursor-pointer">
                     <input
                         type="color"
                         value={newCategoryColor}
                         onChange={(e) => setNewCategoryColor(e.target.value)}
-                        className="w-8 h-8 rounded shrink-0 cursor-pointer border-0 p-0 bg-transparent"
+                        className="w-6 h-6 shrink-0 cursor-pointer border-0 p-0 bg-transparent"
                     />
                 </div>
              </div>
              <button
                  onClick={handleAddCategory}
                  disabled={!newCategoryName.trim()}
-                 className="flex items-center justify-center gap-2 h-[42px] px-4 rounded-lg bg-brand-500 hover:bg-brand-400 disabled:opacity-50 disabled:cursor-not-allowed text-white font-medium transition-colors whitespace-nowrap shadow-sm shadow-brand-500/20"
+                 className="flex items-center justify-center gap-2 h-[34px] px-4 border border-brand-400/30 bg-brand-500/10 hover:bg-brand-500/20 disabled:opacity-50 disabled:cursor-not-allowed text-brand-400 font-bold tracking-widest text-[10px] uppercase transition-colors whitespace-nowrap"
              >
-                 <Plus size={16} /> <span className="hidden sm:inline">Añadir</span>
+                 <Plus size={14} /> <span className="hidden sm:inline">AÑADIR_CAT</span>
              </button>
           </div>
 
+          <div className="ml-2">
           {categories.length === 0 ? (
-            <div className="text-center py-6 text-surface-500 text-sm italic">
-                Aún no hay categorías registradas.
+            <div className="text-center py-6 text-brand-400/30 text-xs tracking-widest uppercase border-dashed border border-surface-700">
+                SIN DEFINICIÓN DE CATEGORÍAS
             </div>
           ) : (
             <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3">
               {categories.map((cat) => (
-                <div key={cat.id} className="flex items-center justify-between p-3 bg-surface-800 border border-surface-700 rounded-lg hover:border-surface-600 transition-colors group">
+                <div key={cat.id} className="flex items-center justify-between p-2 bg-surface-900 border border-surface-700 hover:border-brand-400 transition-colors group">
                     <div className="flex items-center gap-2">
-                        <div className="w-4 h-4 rounded-full shadow-sm" style={{ backgroundColor: cat.color }}></div>
-                        <span className="text-sm font-semibold text-surface-200">{cat.name}</span>
+                        <div className="w-3 h-3" style={{ backgroundColor: cat.color }}></div>
+                        <span className="text-[11px] font-bold text-surface-200 tracking-wider uppercase">{cat.name}</span>
                     </div>
                     <button 
                         onClick={() => handleDeleteCategory(cat.id)}
                         className="text-surface-500 hover:text-red-400 opacity-0 group-hover:opacity-100 transition-all p-1"
                         title="Eliminar Categoría"
                     >
-                        <Trash2 size={16} />
+                        <Trash2 size={12} />
                     </button>
                 </div>
               ))}
             </div>
           )}
+          </div>
         </div>
 
       </div>
