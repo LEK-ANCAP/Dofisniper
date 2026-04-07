@@ -13,8 +13,14 @@ async_session = async_sessionmaker(engine, class_=AsyncSession, expire_on_commit
 
 
 async def init_db():
+    from sqlalchemy import text
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
+        # Migración automática si la columna nueva no existe en la BD de Producción
+        try:
+            await conn.execute(text("ALTER TABLE app_settings ADD COLUMN scan_interval_seconds INTEGER DEFAULT 10"))
+        except Exception:
+            pass
 
 
 async def get_db():
