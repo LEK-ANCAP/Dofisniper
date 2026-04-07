@@ -29,6 +29,7 @@ export default function IntelligenceDashboard() {
   const [distribution, setDistribution] = useState(null);
   const [history, setHistory] = useState(null);
   const [selectedProduct, setSelectedProduct] = useState(null);
+  const [timeRange, setTimeRange] = useState('12h');
   const [loading, setLoading] = useState(true);
 
   // Initial Load Main Data
@@ -65,7 +66,7 @@ export default function IntelligenceDashboard() {
     if (!selectedProduct) return;
     async function loadTimeSeries() {
        try {
-          const hist = await fetchProductHistory(selectedProduct);
+          const hist = await fetchProductHistory(selectedProduct, timeRange);
           setHistory(hist);
        } catch(e) {
           console.error(e);
@@ -74,7 +75,7 @@ export default function IntelligenceDashboard() {
     loadTimeSeries();
     const interval = setInterval(loadTimeSeries, 60000);
     return () => clearInterval(interval);
-  }, [selectedProduct]);
+  }, [selectedProduct, timeRange]);
 
   if (loading) {
     return (
@@ -169,19 +170,38 @@ export default function IntelligenceDashboard() {
        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
          {/* Main TimeSeries Graph */}
          <div className={`lg:col-span-2 ${glass} h-[450px] flex flex-col`}>
-             <div className="flex justify-between items-center mb-4">
-                 <h3 className="font-semibold text-white">Curva de Flujo (12 Hrs)</h3>
-                 <select 
-                    value={selectedProduct || ''} 
-                    onChange={e => setSelectedProduct(parseInt(e.target.value))}
-                    className="bg-surface-900 border border-surface-700 text-xs text-surface-200 rounded px-2 py-1 max-w-[250px]"
-                 >
-                    {products.map((p) => (
-                       <option key={p.id} value={p.id}>
-                         {p.name !== 'Sin nombre' ? p.name.substring(0,40) : p.url.split('/').pop().substring(0,20)}
-                       </option>
-                    ))}
-                 </select>
+             <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-4">
+                 <h3 className="font-semibold text-white">
+                    Curva de Flujo 
+                    <span className="text-surface-400 text-xs font-normal ml-2">
+                       ({timeRange === '12h' ? '12 Horas' : timeRange === '24h' ? 'Día (24H)' : timeRange === '30d' ? 'Mes' : 'Histórico Total'})
+                    </span>
+                 </h3>
+                 
+                 <div className="flex items-center gap-2">
+                    <select 
+                       value={timeRange}
+                       onChange={e => setTimeRange(e.target.value)}
+                       className="bg-surface-900 border border-surface-700 text-xs text-brand-400 rounded px-2 py-1 max-w-[150px] outline-none"
+                    >
+                       <option value="12h">12 Hrs</option>
+                       <option value="24h">24 Hrs (Día)</option>
+                       <option value="30d">1 Mes (30d)</option>
+                       <option value="total">Histórico Total</option>
+                    </select>
+
+                    <select 
+                       value={selectedProduct || ''} 
+                       onChange={e => setSelectedProduct(parseInt(e.target.value))}
+                       className="bg-surface-900 border border-surface-700 text-xs text-surface-200 rounded px-2 py-1 max-w-[250px] outline-none"
+                    >
+                       {products.map((p) => (
+                          <option key={p.id} value={p.id}>
+                            {p.name !== 'Sin nombre' ? p.name.substring(0,40) : p.url.split('/').pop().substring(0,20)}
+                          </option>
+                       ))}
+                    </select>
+                 </div>
              </div>
              
              <div className="flex-1 w-full relative">

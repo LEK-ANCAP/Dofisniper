@@ -82,9 +82,8 @@ export const forceLogout = () =>
 // Analytics
 export const fetchProductAnalytics = (id) => request(`/analytics/product/${id}`);
 
-// Intelligence
 export const fetchIntelligenceDashboard = () => request('/market-intelligence/dashboard');
-export const fetchProductHistory = (id) => request(`/market-intelligence/history/${id}`);
+export const fetchProductHistory = (id, range = '12h') => request(`/market-intelligence/history/${id}?range=${range}`);
 export const fetchDemandRanking = () => request('/market-intelligence/demand-ranking');
 export const fetchDistribution = () => request('/market-intelligence/distribution');
 

@@ -138,19 +138,37 @@ async def get_intelligence_dashboard_kpis(db: AsyncSession = Depends(get_db)):
     }
 
 @router.get("/history/{product_id}")
-async def get_product_history(product_id: int, db: AsyncSession = Depends(get_db)):
+async def get_product_history(product_id: int, range: str = "12h", db: AsyncSession = Depends(get_db)):
     """ Series Temporales para ChartJs """
     now = datetime.now(timezone.utc)
-    twelve_hours_ago = now - timedelta(hours=12) # Graficamos las últimas 12 horas por min
+    
+    time_limit = now - timedelta(hours=12) # default 12 hrs
+    step = 1
+    fmt = '%H:%M'
+    
+    if range == "24h":
+        time_limit = now - timedelta(hours=24)
+        step = 2
+    elif range == "30d":
+        time_limit = now - timedelta(days=30)
+        step = 60 # Cada 1 hora
+        fmt = '%d/%m %H:00'
+    elif range == "total":
+        time_limit = now - timedelta(days=365) # Maximo historial
+        step = 120 # Cada 2 horas
+        fmt = '%d/%m/%y'
     
     result = await db.execute(select(ProductSnapshot).where(
         ProductSnapshot.product_id == product_id,
-        ProductSnapshot.created_at >= twelve_hours_ago
+        ProductSnapshot.created_at >= time_limit
     ).order_by(ProductSnapshot.created_at.asc()))
     
     snaps = result.scalars().all()
     
-    timestamps = [s.created_at.strftime('%H:%M') for s in snaps]
+    if step > 1:
+        snaps = snaps[::step]
+    
+    timestamps = [s.created_at.strftime(fmt) for s in snaps]
     warehouse = [s.stock_quantity for s in snaps]
     transit = [s.transit_quantity for s in snaps]
     

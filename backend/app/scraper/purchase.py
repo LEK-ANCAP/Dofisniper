@@ -390,7 +390,8 @@ async def add_to_cart_and_checkout(
         except PlaywrightTimeout:
             try:
                 # Plan B por si 'active' no está presente pero el texto sí
-                checkout_locator = page.get_by_text("Pagar", exact=False).filter(visible=True).first
+                # Usar xpath o cadena engarzada >> visible=true para compatibilidad robusta
+                checkout_locator = page.locator("button:has-text('Pagar'), div:has-text('Pagar')").locator("visible=true").last
                 await checkout_locator.wait_for(state="attached", timeout=5000)
                 checkout_btn = checkout_locator
                 await record_step("Botón de Pagar detectado mediante texto fallback.")
