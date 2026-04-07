@@ -19,13 +19,14 @@ async def get_logs(
     db: AsyncSession = Depends(get_db),
 ):
     """Lista los logs de acciones más recientes."""
-    query = select(ActionLog).order_by(ActionLog.created_at.desc()).limit(limit)
+    query = select(ActionLog).order_by(ActionLog.created_at.desc())
 
     if level:
         query = query.where(ActionLog.level == level)
     if product_id:
         query = query.where(ActionLog.product_id == product_id)
 
+    query = query.limit(limit)
     result = await db.execute(query)
     return result.scalars().all()
 

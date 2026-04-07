@@ -57,7 +57,11 @@ export const fetchLiveView = (id) =>
   request(`/products/${id}/live-view`);
 
 // Logs
-export const fetchLogs = (limit = 50) => request(`/logs/?limit=${limit}`);
+export const fetchLogs = (limit = 50, productId = null) => {
+  let url = `/logs/?limit=${limit}`;
+  if (productId) url += `&product_id=${productId}`;
+  return request(url);
+};
 export const clearLogs = () => request('/logs/', { method: 'DELETE' });
 
 // Actions

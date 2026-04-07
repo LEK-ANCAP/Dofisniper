@@ -50,7 +50,7 @@ async def get_product_analytics(
     # Obtener logs críticos (compras)
     logs_stmt = select(ActionLog).where(
         ActionLog.product_id == product_id,
-        ActionLog.action.in_(["auto_purchase", "manual_checkout"])
+        ActionLog.action.in_(["auto_purchase", "manual_checkout", "auto_purchase_failed", "manual_checkout_failed", "manual_checkout_crash"])
     ).order_by(asc(ActionLog.created_at))
     if time_threshold:
         logs_stmt = logs_stmt.where(ActionLog.created_at >= time_threshold)

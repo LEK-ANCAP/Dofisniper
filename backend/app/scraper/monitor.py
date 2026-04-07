@@ -188,6 +188,9 @@ async def _parse_api_response_all_warehouses(
             image_url = "https:" + image_url
         elif image_url.startswith("http://"):
             image_url = image_url.replace("http://", "https://")
+        elif not image_url.startswith("http"):
+            # Si es relativa sin // ni http, asumimos el host de DofiMall
+            image_url = f"https://www.dofimall.com{image_url if image_url.startswith('/') else '/' + image_url}"
 
     price = None
     product_price = default_product.get("productPrice")

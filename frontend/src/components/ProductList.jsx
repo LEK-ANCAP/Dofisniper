@@ -4,7 +4,7 @@ import {
   ShoppingCart, AlertTriangle, Package, Edit3, BarChart, X, Zap, Target, Eye, Database, Crosshair, Terminal, Camera, Activity, Download, Upload, MapPin, Truck, RefreshCw
 } from 'lucide-react';
 import toast from 'react-hot-toast';
-import { updateProduct, manualCheckout, fetchLogs, fetchLiveView, fetchProductHistory, fetchCategories } from '../utils/api';
+import { updateProduct, manualCheckout, fetchLogs, fetchLiveView, fetchProductAnalytics, fetchCategories } from '../utils/api';
 import { playTacticalClick, playEngageAlarm, playMissionSuccess, playMissionFail, startMorseTransmission, stopMorseTransmission } from '../utils/tacticalAudio';
 
 const STATUS_CONFIG = {
@@ -72,18 +72,28 @@ function ProductItem({ product, i, onDelete, onToggle, onCheckout, onOpenEdit })
     if (expandedTab === 'snipe' || expandedTab === 'auto') {
       interval = setInterval(async () => {
         try {
-          const logs = await fetchLogs(product.id, 15);
+          // Filtrar por ID de producto y aumentar límite para tener margen de filtrado local
+          const logs = await fetchLogs(30, product.id); 
           if (logs && logs.length > 0) {
-             const terminalLines = logs.reverse().map(l => {
-                const time = new Date(l.created_at).toLocaleTimeString();
-                return `[${time}] ${l.message}`;
-             }).join('\n');
-             setLogOutput(terminalLines);
+             // Filtrar localmente para excluir ruido de stock_changed si no estamos en 'recon'
+             const filtered = logs.filter(l => 
+                l.action !== 'stock_changed' && 
+                l.action !== 'check_error' &&
+                l.action !== 'category_created'
+             );
+             
+             if (filtered.length > 0) {
+                const terminalLines = filtered.reverse().map(l => {
+                   const time = new Date(l.created_at).toLocaleTimeString();
+                   return `[${time}] ${l.message}`;
+                }).join('\n');
+                setLogOutput(terminalLines);
+             }
           }
 
           if (isExecuting) {
-            const frame = await fetchLiveView(product.id);
-            if (frame) setLiveFrame(frame);
+            const data = await fetchLiveView(product.id);
+            if (data && data.frame) setLiveFrame(data.frame);
           }
         } catch (e) {}
       }, 1500);
@@ -93,8 +103,8 @@ function ProductItem({ product, i, onDelete, onToggle, onCheckout, onOpenEdit })
 
   useEffect(() => {
     if (expandedTab === 'analytics' && !analyticsLoaded) {
-       fetchProductHistory(product.id).then(data => {
-          setHistory(data);
+       fetchProductAnalytics(product.id).then(data => {
+          setHistory(data.timeline || []);
           setAnalyticsLoaded(true);
        });
     }
@@ -171,7 +181,7 @@ function ProductItem({ product, i, onDelete, onToggle, onCheckout, onOpenEdit })
         <div className="relative group/img flex-shrink-0">
           <div className="w-16 h-16 sm:w-20 sm:h-20 bg-surface-900 border border-surface-700 flex items-center justify-center overflow-hidden">
             {product.image_url ? (
-               <img src={product.image_url} alt={product.name} className="w-full h-full object-cover filter grayscale hover:grayscale-0 transition-all duration-500" />
+               <img src={`/api/products/image-proxy?url=${encodeURIComponent(product.image_url)}`} alt={product.name} className="w-full h-full object-cover filter grayscale hover:grayscale-0 transition-all duration-500" />
             ) : (
                <Package size={24} className="text-surface-600" />
             )}
@@ -280,20 +290,52 @@ function ProductItem({ product, i, onDelete, onToggle, onCheckout, onOpenEdit })
             {/* TAB: INTEL (Analytics) */}
             {expandedTab === 'analytics' && (
                <div>
-                  <div className="text-[10px] font-mono text-blue-400 mb-3 tracking-wider uppercase flex items-center gap-2"><Database size={16}/> Actividad Reciente del Objetivo</div>
+                  <div className="text-[10px] font-mono text-blue-400 mb-3 tracking-wider uppercase flex items-center gap-2"><Database size={16}/> Actividad Relevante del Objetivo (Intel)</div>
                   {history.length === 0 ? (
-                     <div className="text-surface-400 text-[10px] font-mono p-6 bg-surface-800 w-full text-center border border-surface-700 border-dashed uppercase">DESCARGANDO TELEMETRÍA HISTÓRICA / SIN DATOS</div>
+                     <div className="text-surface-400 text-[10px] font-mono p-6 bg-surface-800 w-full text-center border border-surface-700 border-dashed uppercase text-[10px]">SIN EVENTOS SIGNIFICATIVOS REGISTRADOS</div>
                   ) : (
-                     <div className="space-y-1 h-48 overflow-y-auto custom-scrollbar pr-2">
-                        {history.map((row, index) => (
-                           <div key={index} className="flex justify-between items-center text-[10px] font-mono p-2 bg-surface-900 border border-surface-700 text-surface-300  hover:bg-surface-800 hover:text-white transition-colors uppercase">
-                             <span className="text-brand-400/70">{row.timestamp || row.created_at}</span>
-                             <div className="flex gap-4">
-                               <span className="text-brand-400 font-bold">{row.warehouse_stock} LOCAL</span>
-                               <span className="text-blue-400 font-bold">{row.transit_stock} TRANS</span>
-                             </div>
-                           </div>
-                        ))}
+                     <div className="space-y-1 h-64 overflow-y-auto custom-scrollbar pr-2">
+                        {history.sort((a,b) => new Date(b.timestamp) - new Date(a.timestamp)).map((row, index) => {
+                           const time = new Date(row.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+                           
+                           // Definir icono y color según categoría
+                           let Icon = Activity;
+                           let color = "text-surface-400";
+                           let label = "";
+
+                           if (row.event_category === 'my_purchase') {
+                              Icon = ShoppingCart; color = "text-brand-400 font-bold bg-brand-500/10 border-brand-400/30"; label = "COMPRA LOGRADA";
+                           } else if (row.event_category === 'market_purchase') {
+                              Icon = Truck; color = "text-amber-400/80"; label = "VENTA MERCADO";
+                           } else if (row.event_category === 'failed_purchase') {
+                              Icon = AlertTriangle; color = "text-red-400 bg-red-500/10 border-red-500/30"; label = "FALLO OPERACIÓN";
+                           } else if (row.event_category === 'restock') {
+                              Icon = Download; color = "text-emerald-400 bg-emerald-500/10 border-emerald-500/30"; label = "RESTOCK DETECTADO";
+                           }
+
+                           return (
+                              <div key={index} className={`flex flex-col sm:flex-row sm:items-center justify-between gap-2 text-[10px] font-mono p-3 bg-surface-900 border border-surface-700 hover:border-surface-600 transition-colors uppercase ${color}`}>
+                                 <div className="flex items-center gap-3">
+                                    <span className="text-surface-500">{time}</span>
+                                    <Icon size={14} />
+                                    <span className="font-bold">{label || row.type.toUpperCase()}</span>
+                                 </div>
+                                 <div className="flex gap-4 items-center">
+                                    {row.volume_change !== undefined && (
+                                       <span className={row.volume_change > 0 ? "text-emerald-400" : "text-red-400"}>
+                                          {row.volume_change > 0 ? "+" : ""}{row.volume_change}U
+                                       </span>
+                                    )}
+                                    {row.total_stock !== undefined && (
+                                       <span className="text-surface-500 border-l border-surface-700 pl-3">STOCK: {row.total_stock}U</span>
+                                    )}
+                                    {row.message && (
+                                       <span className="text-[9px] lowercase opacity-80 max-w-[200px] truncate">{row.message}</span>
+                                    )}
+                                 </div>
+                              </div>
+                           );
+                        })}
                      </div>
                   )}
                </div>
