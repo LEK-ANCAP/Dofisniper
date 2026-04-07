@@ -188,7 +188,7 @@ export default function App() {
               {sessionActive ? (
                 <>
                   <ShieldCheck size={14} className="text-emerald-500" />
-                  <span className="hidden sm:inline text-xs font-semibold text-emerald-400 uppercase tracking-widest">Activo</span>
+                  <span className="hidden sm:inline text-xs font-semibold text-emerald-400 uppercase tracking-widest">Logueado</span>
                 </>
               ) : (
                 <>

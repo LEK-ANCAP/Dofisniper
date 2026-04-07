@@ -414,7 +414,7 @@ async def lifespan(app: FastAPI):
     scheduler.add_job(
         run_keep_alive,
         "interval",
-        minutes=5,
+        minutes=3,
         id="keep_alive_session",
         name="Keep Alive Session",
         replace_existing=True,
@@ -423,7 +423,7 @@ async def lifespan(app: FastAPI):
     
     scheduler.start()
     logger.info(
-        f"⏰ Scheduler activado (Keep-alive programado cada 5 min)"
+        f"⏰ Scheduler activado (Keep-alive programado cada 3 min)"
     )
 
     yield

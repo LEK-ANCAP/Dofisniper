@@ -406,20 +406,18 @@ async def add_to_cart_and_checkout(
         # ── Click Inteligente en botón de pagar/checkout ──
         await record_step("Escaneando el DOM buscando el botón final de PAGO (Checkout)")
         try:
-            # Según extracción del DOM: <div data-v-15d3b788="" class="go_buy cursor_pointer go_submit">Pagar</div>
-            # Cuando está inactivo NO tiene la clase activa. Cuando está listo suele estar activo.
-            checkout_locator = page.locator(".go_buy.go_submit, div:has-text('Pagar')").locator("visible=true").first
+            # Seleccionamos las clases exactas de DofiMall (Escritorio y Móvil), o coincidencia exacta de texto
+            checkout_locator = page.locator(".cart-footer__operate, .go_buy.go_submit, div:text-is('Pagar'), button:text-is('Pagar')").locator("visible=true").first
             await checkout_locator.wait_for(state="attached", timeout=6000)
             checkout_btn = checkout_locator
             await record_step("Botón de Pagar activo, visible y detectado.")
         except PlaywrightTimeout:
             try:
-                # Plan B por si 'active' no está presente pero el texto sí
-                # Usar xpath o cadena engarzada >> visible=true para compatibilidad robusta
-                checkout_locator = page.locator("div.go_buy, div.go_submit").locator("visible=true").last
+                # Plan B robusto
+                checkout_locator = page.locator("div.cart-footer__operate, div.go_buy").locator("visible=true").last
                 await checkout_locator.wait_for(state="attached", timeout=5000)
                 checkout_btn = checkout_locator
-                await record_step("Botón de Pagar detectado mediante texto fallback.")
+                await record_step("Botón de Pagar detectado mediante fallback de clases.")
             except PlaywrightTimeout:
                 checkout_btn = None
 
@@ -447,14 +445,15 @@ async def add_to_cart_and_checkout(
             # 2. Scrollear al botón
             await checkout_btn.scroll_into_view_if_needed()
             
-            # 3. Clic Quirúrgico Basado en Coordenadas (Bypass de interceptores)
+            # 3. Clic Quirúrgico Basado en Coordenadas (verificando que no sea toda la página)
             box = await checkout_btn.bounding_box()
-            if box:
+            if box and box["width"] < 400 and box["height"] < 200:
                 logger.info(f"🎯 Calculadas coordenadas Box(X={box['x']}, Y={box['y']}). Disparando Mouse nativo.")
                 await page.mouse.click(box["x"] + box["width"] / 2, box["y"] + box["height"] / 2)
             else:
-                await checkout_btn.click(force=True, timeout=5000)
-                logger.info("🖱️ Fallback a Click force nativo de Playwright")
+                # Si el box es gigante (ej. matcheó el #app), caemos al disparo JS seguro
+                await checkout_btn.evaluate("element => element.click()")
+                logger.info("🖱️ Fallback a Click JS nativo de Playwright por caja atípica")
 
         except Exception as e:
             await checkout_btn.evaluate("element => element.click()")
