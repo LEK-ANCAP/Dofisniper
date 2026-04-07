@@ -80,6 +80,8 @@ export const forceLogout = () =>
   request('/settings/logout', { method: 'POST' });
 export const checkSessionStatus = () =>
   request('/settings/session-status');
+export const checkSessionFastStatus = () =>
+  request('/settings/session-status-fast');
 export const forceLogin = () =>
   request('/settings/force-login', { method: 'POST' });
 

@@ -80,10 +80,18 @@ async def check_session_status():
         if "login" in page.url:
             is_anonymous = True
             
+        browser_manager._is_logged_in = not is_anonymous
         await browser_manager.close_page(page)
-        return {"active": not is_anonymous, "message": "OK"}
+        return {"active": browser_manager._is_logged_in, "message": "OK"}
     except Exception as e:
         return {"active": False, "message": f"Error: {str(e)}"}
+
+@router.get("/session-status-fast")
+async def check_session_status_fast():
+    """Retorna la última bandera en caché de Playwright sin penalización de CPU."""
+    if getattr(browser_manager, "_context", None) is None:
+        return {"active": False, "message": "Navegador físico apagado"}
+    return {"active": getattr(browser_manager, "_is_logged_in", False), "message": "Cached"}
 
 @router.post("/force-login")
 async def manual_force_login(db: AsyncSession = Depends(get_db)):
@@ -101,6 +109,9 @@ async def manual_force_login(db: AsyncSession = Depends(get_db)):
         from app.scraper.purchase import execute_login_bypass
         res = await execute_login_bypass(page, sys_settings.dofimall_email, sys_settings.dofimall_password)
         
+        if res.get("success"):
+            browser_manager._is_logged_in = True
+            
         await browser_manager.close_page(page)
         return res
     except Exception as e:

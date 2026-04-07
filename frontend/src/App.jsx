@@ -11,9 +11,9 @@ import {
   fetchDashboard, fetchProducts, fetchLogs,
   addProduct, addProductsBulk, deleteProduct,
   toggleProduct, triggerCheckNow, manualCheckout, clearLogs,
-  fetchMe, fetchCategories
+  fetchMe, fetchCategories, checkSessionFastStatus
 } from './utils/api';
-import { Crosshair, RefreshCw, Activity, Settings, BarChart2, LogOut } from 'lucide-react';
+import { Crosshair, RefreshCw, Activity, Settings, BarChart2, LogOut, ShieldAlert, ShieldCheck } from 'lucide-react';
 import LoginPage from './pages/LoginPage';
 
 export default function App() {
@@ -23,6 +23,7 @@ export default function App() {
   const [categories, setCategories] = useState([]);
   const [loading, setLoading] = useState(true);
   const [checking, setChecking] = useState(false);
+  const [sessionActive, setSessionActive] = useState(false);
   const [showAddForm, setShowAddForm] = useState(false);
   const [tab, setTab] = useState('products');
   const [isAuthenticated, setIsAuthenticated] = useState(!!localStorage.getItem('sniper_token'));
@@ -36,13 +37,14 @@ export default function App() {
   const loadData = useCallback(async () => {
     if (!isAuthenticated) return;
     try {
-      const [s, p, l, c] = await Promise.all([
-        fetchDashboard(), fetchProducts(), fetchLogs(30), fetchCategories()
+      const [s, p, l, c, sess] = await Promise.all([
+        fetchDashboard(), fetchProducts(), fetchLogs(30), fetchCategories(), checkSessionFastStatus()
       ]);
       setStats(s);
       setProducts(p);
       setLogs(l);
       setCategories(c);
+      setSessionActive(sess?.active || false);
     } catch (e) {
       console.error('Error cargando datos:', e);
       if (e.message.includes('401') || e.message.includes('validar la sesión')) {
@@ -180,6 +182,24 @@ export default function App() {
           </div>
 
           <div className="flex items-center gap-4">
+            
+            {/* Session Indicator Badge */}
+            <div className="flex items-center gap-2 px-3 py-1.5 rounded-lg border border-surface-700 bg-surface-800" title={sessionActive ? "Sesión de bot sincronizada y conectada a DofiMall." : "Sesión de bot desconectada o expirada. (Ve a Configuración -> Forzar Inyección)"}>
+              {sessionActive ? (
+                <>
+                  <ShieldCheck size={14} className="text-emerald-500" />
+                  <span className="hidden sm:inline text-xs font-semibold text-emerald-400 uppercase tracking-widest">Activo</span>
+                </>
+              ) : (
+                <>
+                  <ShieldAlert size={14} className="text-red-500" />
+                  <span className="hidden sm:inline text-xs font-semibold text-red-500 uppercase tracking-widest">Expirada</span>
+                </>
+              )}
+            </div>
+            
+            <div className="h-6 w-px bg-white/10 hidden sm:block" />
+
             <CountdownTimer
               nextCheck={stats?.next_check}
               interval={stats?.check_interval}
