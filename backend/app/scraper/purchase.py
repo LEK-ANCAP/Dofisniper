@@ -340,47 +340,60 @@ async def add_to_cart_and_checkout(
         await record_step(f"Verificando carga de pasarela (URL actual: {page.url})")
         logger.info(f"📍 En el carrito: {page.url}")
 
-        # ── Paso 3: Seleccionar productos y hacer checkout ──
-        await record_step("Fase: Verificación de items y Checkout")
-
-        # (La selección de todo el carrito se delega al comportamiento por defecto de DofiMall, 
-        # que auto-selecciona el ítem recién añadido. Modificarlo causa desincronización en VueJS).
+        # ── Paso 3: Verificar Selección Inteligente ──
+        await record_step("Fase: Verificación inteligente de items")
+        try:
+            # Esperamos que la página reflexione selección (texto o clases css).
+            # DofiMall usa Vue con la clase 'active' en el botón go_buy cuando está listo para pagar
+            ready_indicator = page.locator(".go_buy.active, .go_submit.active").first
+            await ready_indicator.wait_for(state="attached", timeout=3000)
+            logger.info("✅ Vue.js confirma que los productos están seleccionados (botón activo).")
+        except PlaywrightTimeout:
+            logger.info("⚠️ El botón Pagar no está activo. Probablemente el carrito esté desmarcado.")
+            try:
+                # Forzar click de seleccionar todo solo si es estrictamente necesario
+                select_all = page.locator("span, div").filter(has_text="Seleccionar todo").last
+                await select_all.scroll_into_view_if_needed()
+                await select_all.click(force=True)
+                await page.wait_for_timeout(1000)
+            except: pass
 
         # ── Ajustar Cantidad Exacta dentro del carrito ──
         if target_quantity > 1:
             try:
                 await record_step(f"Ajustando la cantidad deseada al lote de ataque: {target_quantity} uds")
-                # Basado en la captura: Vue renderiza un <input type="number"> en el carrito.
-                # Aseguramos de que agarre el input visible del carrito de este producto.
                 cart_qty_input = page.locator("input[type='number']").first
                 
                 if await cart_qty_input.count() > 0:
-                    # Rellenar con la cantidad exacta
                     await cart_qty_input.fill(str(target_quantity))
-                    
-                    # Simular "Enter" para forzar reactividad en VueJS
                     await cart_qty_input.press("Enter")
-                    await page.wait_for_timeout(2000)
-                    logger.info(f"✔️ Cantidad blindada en carrito a {target_quantity}")
+                    # ESPERA INTELIGENTE DE RED: Al presionar Enter, Vue recalcula y lanza un XHR.
+                    logger.info("⏳ Esperando estabilización de red por reactividad de Vue...")
+                    try:
+                        await page.wait_for_load_state("networkidle", timeout=6000)
+                    except PlaywrightTimeout:
+                        logger.warning("⚠️ Timeout esperando networkidle tras ajustar cantidad. Avanzando de todos modos.")
+                    
+                    logger.info(f"✔️ Cantidad blindada en carrito a {target_quantity} y UI estabilizada.")
             except Exception as e:
                 logger.warning(f"Aviso de intercepción ajustando cantidad en carrito: {e}")
                 await record_step("Aviso: Fallo visual ajustando la cantidad. Continuando...")
 
-        # Click en botón de pagar/checkout
+        # ── Click Inteligente en botón de pagar/checkout ──
         await record_step("Escaneando el DOM buscando el botón final de PAGO (Checkout)")
         try:
-            # Buscar el botón principal del carrito go_buy (tomado de la captura de DevTools)
-            checkout_locator = page.locator(".go_buy, .go_submit, .goBuy, .cart-submit, button:has-text('Pagar')").first
-            await checkout_locator.wait_for(state="attached", timeout=5000)
+            # Buscar la versión estrictamente VISIBLE y ACTIVA del botón
+            checkout_locator = page.locator(".go_buy.active:visible, .go_submit.active:visible, button:has-text('Pagar'):not([disabled]):visible").first
+            await checkout_locator.wait_for(state="attached", timeout=6000)
             checkout_btn = checkout_locator
-            await record_step("Botón de Pagar detectado y visible.")
+            await record_step("Botón de Pagar activo, visible y detectado.")
         except PlaywrightTimeout:
             try:
-                # Plan B: buscar por Regex para soportar cosas como Pagar(1) o Pagar
-                checkout_locator = page.locator("text=/Pagar/i, text=/Comprar/i").last
+                # Plan B por si 'active' no está presente pero el texto sí
+                checkout_locator = page.get_by_text("Pagar", exact=False).filter(visible=True).first
                 await checkout_locator.wait_for(state="attached", timeout=5000)
                 checkout_btn = checkout_locator
-                await record_step("Botón de Pagar detectado mediante texto.")
+                await record_step("Botón de Pagar detectado mediante texto fallback.")
             except PlaywrightTimeout:
                 checkout_btn = None
 
@@ -392,24 +405,36 @@ async def add_to_cart_and_checkout(
             with open("logs/last_checkout_fail.html", "w", encoding="utf-8") as f:
                 f.write(content)
                 
-            result["message"] = "No se encontró el botón de checkout (DOM guardado para diagnóstico)"
+            result["message"] = "No se encontró el botón de checkout visible y activo (DOM guardado)"
             logger.error(f"❌ {result['message']}")
             await page.screenshot(path="screenshots/checkout_btn_not_found.png")
             return result
             
-        await record_step("Presionando Confirmar y Pagar ('Checkout')")
+        await record_step("Inyectando Clic Quirúrgico en Pagar ('Checkout')")
         try:
-            # Ejecutar scroll hacia el botón por si está fuera de pantalla
+            # 1. Esperar que desaparezcan capas de carga comunes (bloqueadores visuales)
+            loading_mask = page.locator(".el-loading-mask:visible").first
+            if await loading_mask.count() > 0:
+                logger.info("⏳ Detectada máscara de carga, esperando a que desaparezca...")
+                await loading_mask.wait_for(state="hidden", timeout=5000)
+
+            # 2. Scrollear al botón
             await checkout_btn.scroll_into_view_if_needed()
-            # Probar click normal de Playwright (genera todos los eventos de Vue)
-            await checkout_btn.click(force=True, timeout=5000)
-            logger.info("🖱️ Mouse Click nativo sobre 'Pagar'")
+            
+            # 3. Clic Quirúrgico Basado en Coordenadas (Bypass de interceptores)
+            box = await checkout_btn.bounding_box()
+            if box:
+                logger.info(f"🎯 Calculadas coordenadas Box(X={box['x']}, Y={box['y']}). Disparando Mouse nativo.")
+                await page.mouse.click(box["x"] + box["width"] / 2, box["y"] + box["height"] / 2)
+            else:
+                await checkout_btn.click(force=True, timeout=5000)
+                logger.info("🖱️ Fallback a Click force nativo de Playwright")
+
         except Exception as e:
-            # Fallback a JS click
             await checkout_btn.evaluate("element => element.click()")
-            logger.info("🖱️ Fallback JS Click en 'Pagar'")
+            logger.info(f"🖱️ Fallback puro JS Click en 'Pagar'. Error previo: {e}")
         
-        # Esperamos explícitamente a que Vue monte la nueva pantalla (en lugar del timeout fijo, monitoreamos DOM)
+        # Esperamos explícitamente a que Vue monte la nueva pantalla
         await page.wait_for_timeout(4000)
 
         # ── Paso 4: Enviar pedido y aceptar condiciones ──
