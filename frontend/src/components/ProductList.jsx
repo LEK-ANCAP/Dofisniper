@@ -91,7 +91,7 @@ function ProductItem({ product, i, onDelete, onToggle, onCheckout, onOpenEdit })
              }
           }
 
-          if (isExecuting) {
+          if (activeStatus === 'purchasing') {
             const data = await fetchLiveView(product.id);
             if (data && data.frame) setLiveFrame(data.frame);
           }
@@ -169,9 +169,10 @@ function ProductItem({ product, i, onDelete, onToggle, onCheckout, onOpenEdit })
       style={{ animationDelay: `${i * 20}ms` }}>
       
       {/* SCANLINE EFFECT during Infiltration */}
-      {isExecuting && (
-          <div className="absolute inset-0 pointer-events-none z-50 overflow-hidden opacity-20">
+      {activeStatus === 'purchasing' && (
+          <div className="absolute inset-0 pointer-events-none z-50 overflow-hidden opacity-30">
               <div className="w-full h-1 bg-red-500 shadow-[0_0_15px_red] absolute top-[-10%] left-0 animate-scanline" />
+              <div className="absolute top-2 right-2 bg-red-600 text-white text-[8px] font-mono px-2 py-0.5 animate-pulse uppercase z-50">SISTEMA_EN_ATAQUE</div>
           </div>
       )}
 
@@ -181,7 +182,16 @@ function ProductItem({ product, i, onDelete, onToggle, onCheckout, onOpenEdit })
         <div className="relative group/img flex-shrink-0">
           <div className="w-16 h-16 sm:w-20 sm:h-20 bg-surface-900 border border-surface-700 flex items-center justify-center overflow-hidden">
             {product.image_url ? (
-               <img src={`/api/products/image-proxy?url=${encodeURIComponent(product.image_url)}`} alt={product.name} className="w-full h-full object-cover filter grayscale hover:grayscale-0 transition-all duration-500" />
+               <img 
+                 src={`/api/products/image-proxy?url=${encodeURIComponent(product.image_url)}`} 
+                 alt={product.name} 
+                 className="w-full h-full object-cover filter grayscale hover:grayscale-0 transition-all duration-500" 
+                 onError={(e) => {
+                    e.target.onerror = null; 
+                    e.target.src = ""; // Clear broken src
+                    e.target.parentElement.innerHTML = '<div class="flex items-center justify-center w-full h-full bg-surface-900"><svg class="text-surface-600" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"></path><polyline points="3.27 6.96 12 12.01 20.73 6.96"></polyline><line x1="12" y1="22.08" x2="12" y2="12"></line></svg></div>';
+                 }}
+               />
             ) : (
                <Package size={24} className="text-surface-600" />
             )}
@@ -208,9 +218,13 @@ function ProductItem({ product, i, onDelete, onToggle, onCheckout, onOpenEdit })
                </a>
 
                {/* Badges */}
-               <TacticalBadge active={product.is_active}>
-                  <StatusIcon size={10} className={product.is_active ? statusConf.text : ''} /> 
-                  {product.is_active ? statusConf.label : 'SUSPENDIDO'}
+               <TacticalBadge 
+                  active={product.is_active} 
+                  className={`cursor-pointer hover:bg-brand-500/20 transition-colors ${activeStatus === 'purchasing' ? 'animate-pulse border-red-500 text-red-500 bg-red-500/10 shadow-[0_0_15px_rgba(239,68,68,0.3)]' : ''}`}
+                  onClick={() => { playTacticalClick(); setExpandedTab('snipe'); }}
+               >
+                  <StatusIcon size={10} className={product.is_active ? (activeStatus === 'purchasing' ? 'text-red-500' : statusConf.text) : ''} /> 
+                  {product.is_active ? (activeStatus === 'purchasing' ? 'ATACANDO OBJETIVO' : statusConf.label) : 'SUSPENDIDO'}
                </TacticalBadge>
                <ScanCountdown isActive={product.is_active} />
             </div>

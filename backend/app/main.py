@@ -234,7 +234,7 @@ async def process_single_product(product_id: int):
                         )
 
                 # TRIGGER CHECKOUT CONCURRENTLY
-                if product.auto_buy and browser_manager.is_running and stock_result.total_available >= product.min_stock_to_trigger:
+                if product.auto_buy and stock_result.total_available >= product.min_stock_to_trigger:
                     if product.id not in active_checkout_tasks:
                         logger.warning(f"🚀 INICIANDO VUELO TÁCTICO AUTO-COMPRA PARA: {product.name}")
                         product.status = ProductStatus.PURCHASING
