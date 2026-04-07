@@ -355,19 +355,30 @@ async def add_to_cart_and_checkout(
         if await cart_empty_text.count() > 0:
             logger.info("⚠️ El carrito muestra 0 productos seleccionados. Forzando selección de los checkboxes.")
             try:
-                # Buscar checkboxes de Element UI típicos en Vue o un checkbox nativo
-                checkboxes = await page.locator(".el-checkbox, .el-checkbox__original, input[type='checkbox']").all()
+                # Buscar checkboxes: Dofimall usa .cart-checkbox en vez de .el-checkbox para esta vista
+                checkboxes = await page.locator(".cart-checkbox, .el-checkbox, input[type='checkbox']").all()
                 if checkboxes:
-                    # Clicamos el primer checkbox posible (suele ser el header de 'Seleccionar Todo' o el item directo)
-                    await checkboxes[0].click(force=True)
+                    logger.info(f"👉 Se encontraron {len(checkboxes)} checkboxes. Intentando marcar todos...")
+                    # Hacemos click evaluar en todos, para asegurar que se marcan los items y el 'Seleccionar TODO'
+                    for cb in checkboxes:
+                        try:
+                            # click() a nivel de DOM para forzar el bind de Vue sin bloqueos de elementos superpuestos
+                            await cb.evaluate("node => node.click()")
+                            await page.wait_for_timeout(300)
+                        except Exception as e:
+                            pass
+                            
                     await page.wait_for_timeout(1000)
                     
-                    # Clic extra en el último si el primero falló por estar inactivo
-                    if await cart_empty_text.count() > 0 and len(checkboxes) > 1:
-                        await checkboxes[-1].click(force=True)
-                        await page.wait_for_timeout(1000)
+                    # Verificación post-click
+                    if await cart_empty_text.count() > 0:
+                        logger.warning("❌ El carrito sigue con 0 productos después de clickear checkboxes.")
+                    else:
+                        logger.info("✅ Checkboxes forzados exitosamente.")
+                else:
+                    logger.warning("❌ No se detectó ningún checkbox visible en el DOM.")
             except Exception as e:
-                logger.warning(f"Error intentando forzar marca de checkbox: {e}")
+                logger.error(f"Error intentando forzar marca de checkbox: {e}")
         else:
             logger.info("✅ Ya existen productos seleccionados en el carrito.")
 
