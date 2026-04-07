@@ -9,8 +9,11 @@ async def main():
         page = await context.new_page()
         
         await page.goto("https://www.dofimall.com/login")
+        await page.goto("https://www.dofimall.com/login")
         print("\n⏳ ESPERANDO: Por favor, inicia sesión manualmente en la ventana que se acaba de abrir.")
+        print("💡 USA TUS CREDENCIALES (El bot se quedó esperando al captcha de Dofimall).")
         print("⏳ Después de iniciar sesión, navega a tu carrito (Asegúrate de que haya al menos 1 producto).")
+        print("⏳ El script detectará cuando estés en el carrito y extraerá la estructura del DOM automáticamente...")
         print("⏳ El script detectará cuando estés en el carrito y extraerá la estructura del DOM automáticamente...")
         
         # Esperar a que el usuario entre al carrito manualmente

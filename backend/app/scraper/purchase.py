@@ -382,8 +382,9 @@ async def add_to_cart_and_checkout(
         # ── Click Inteligente en botón de pagar/checkout ──
         await record_step("Escaneando el DOM buscando el botón final de PAGO (Checkout)")
         try:
-            # Buscar la versión estrictamente VISIBLE y ACTIVA del botón
-            checkout_locator = page.locator(".go_buy.active:visible, .go_submit.active:visible, button:has-text('Pagar'):not([disabled]):visible").first
+            # Según extracción del DOM: <div data-v-15d3b788="" class="go_buy cursor_pointer go_submit">Pagar</div>
+            # Cuando está inactivo NO tiene la clase activa. Cuando está listo suele estar activo.
+            checkout_locator = page.locator(".go_buy.go_submit, div:has-text('Pagar')").locator("visible=true").first
             await checkout_locator.wait_for(state="attached", timeout=6000)
             checkout_btn = checkout_locator
             await record_step("Botón de Pagar activo, visible y detectado.")
@@ -391,7 +392,7 @@ async def add_to_cart_and_checkout(
             try:
                 # Plan B por si 'active' no está presente pero el texto sí
                 # Usar xpath o cadena engarzada >> visible=true para compatibilidad robusta
-                checkout_locator = page.locator("button:has-text('Pagar'), div:has-text('Pagar')").locator("visible=true").last
+                checkout_locator = page.locator("div.go_buy, div.go_submit").locator("visible=true").last
                 await checkout_locator.wait_for(state="attached", timeout=5000)
                 checkout_btn = checkout_locator
                 await record_step("Botón de Pagar detectado mediante texto fallback.")
