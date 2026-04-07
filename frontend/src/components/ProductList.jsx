@@ -1,3 +1,4 @@
+import { useState, useEffect, useRef } from 'react';
 import {
   Trash2, Pause, Play, ExternalLink,
   ShoppingCart, AlertTriangle, Package, Edit3, BarChart, X, target, Zap, Target, Eye, Database, Crosshair, Terminal, Camera, Activity, Download, Upload, MapPin
