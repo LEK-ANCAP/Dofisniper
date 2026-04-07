@@ -140,7 +140,7 @@ export function startMorseTransmission() {
       if (morseActive === 0) return;
       if (ctx.state === 'suspended') ctx.resume();
       
-      const durationMultiplier = 60; // velocidad del morse en ms
+      const durationMultiplier = 45; // velocidad del morse en ms
       const currentSignal = morsePattern[morseIndex % morsePattern.length];
       const duration = (currentSignal * durationMultiplier) / 1000.0;
       
@@ -148,9 +148,9 @@ export function startMorseTransmission() {
           const osc = ctx.createOscillator();
           const gain = ctx.createGain();
           osc.type = 'sine';
-          osc.frequency.setValueAtTime(750, ctx.currentTime); // 750Hz tono morse suave
+          osc.frequency.setValueAtTime(800, ctx.currentTime); 
           
-          gain.gain.setValueAtTime(0.015, ctx.currentTime); // Volumen muy bajo para no saturar
+          gain.gain.setValueAtTime(0.04, ctx.currentTime); // Volumen más perceptible
           // Envolvente cuadrada para que suene como un switch
           gain.gain.setValueAtTime(0, ctx.currentTime + duration - 0.01);
           

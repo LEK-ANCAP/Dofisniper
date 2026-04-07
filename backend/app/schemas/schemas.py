@@ -41,6 +41,7 @@ class ProductUpdate(BaseModel):
     target_quantity: Optional[int] = None
     min_stock_to_trigger: Optional[int] = None
     auto_buy: Optional[bool] = None
+    post_purchase_action: Optional[str] = None
     category_id: Optional[int] = None
 
 
@@ -66,6 +67,7 @@ class ProductResponse(BaseModel):
     target_quantity: int = 1
     min_stock_to_trigger: int = 1
     auto_buy: bool = False
+    post_purchase_action: str = "pause"
     created_at: datetime
     updated_at: datetime
 

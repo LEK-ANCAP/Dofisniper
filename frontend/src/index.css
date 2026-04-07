@@ -53,3 +53,39 @@ body {
   27% { transform: translate(0); opacity: 1; }
   100% { transform: translate(0); opacity: 1; filter: contrast(1); }
 }
+
+@keyframes scanline {
+  0% { top: -10%; }
+  100% { top: 110%; }
+}
+
+@keyframes radar {
+  0% { transform: scale(1); opacity: 1; border-color: rgba(0, 255, 65, 0.4); }
+  100% { transform: scale(2.5); opacity: 0; border-color: rgba(0, 255, 65, 0); }
+}
+
+.animate-scanline {
+  animation: scanline 2.5s linear infinite;
+}
+
+.animate-radar {
+  position: relative;
+}
+.animate-radar::after {
+  content: '';
+  position: absolute;
+  inset: -10px;
+  border: 1px solid rgba(0, 255, 65, 0.4);
+  border-radius: 50%;
+  animation: radar 2s cubic-bezier(0.165, 0.84, 0.44, 1) infinite;
+}
+
+/* High Intensity Red Pulse for Infiltration */
+@keyframes red-pulse {
+  0%, 100% { border-color: rgb(220 38 38 / 0.5); box-shadow: 0 0 20px rgb(220 38 38 / 0.2); }
+  50% { border-color: rgb(220 38 38 / 1); box-shadow: 0 0 40px rgb(220 38 38 / 0.5); }
+}
+
+.is-infiltrating {
+  animation: red-pulse 1s ease-in-out infinite;
+}

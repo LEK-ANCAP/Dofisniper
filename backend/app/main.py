@@ -118,11 +118,20 @@ async def persistent_checkout_loop(product_id: int):
                         subject="AUTO-COMPRA LOGRADA ⚡", product_name=product.name, product_url=product.url, 
                         checkout_url=checkout_result.get("checkout_url"), is_purchase=True, quantity=actual_target_qty
                     )
+                    
                     product.status = ProductStatus.RESERVED
-                    product.auto_buy = False # Safety net
-                    await db.commit()
-                    logger.success(f"🎉 [HILO CHECKOUT {product_id}] Ojetivo Asegurado. Cerrando hilo.")
-                    break
+                    
+                    if product.post_purchase_action == "loop" or product.post_purchase_action == "restart":
+                        logger.success(f"♻️ [HILO CHECKOUT {product_id}] Éxito. MODO LOOP ACIVADO - Reingresando en 30s...")
+                        await db.commit()
+                        await asyncio.sleep(30) # Pausa de seguridad antes de volver a atacar
+                        continue
+                    else:
+                        logger.success(f"🎉 [HILO CHECKOUT {product_id}] Objetivo Asegurado. MODO PAUSA - Desactivando sniper.")
+                        product.auto_buy = False 
+                        product.is_active = False # Pausamos el monitoreo general también
+                        await db.commit()
+                        break
                 else:
                     await _log_action(db, product.id, product.name, "auto_purchase_failed", LogLevel.ERROR, "Reintentando ataque...")
                     logger.warning(f"⚠️ [HILO CHECKOUT {product_id}] Falló intento. Reanudando loop casi inmediatamente...")

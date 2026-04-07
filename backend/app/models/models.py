@@ -63,6 +63,7 @@ class Product(Base):
     target_quantity = Column(Integer, default=1)      # Cantidad que intentar comprar
     min_stock_to_trigger = Column(Integer, default=1) # Stock mínimo para disparar el snipe
     auto_buy = Column(Boolean, default=False)          # Compra automática independiente de monitorización
+    post_purchase_action = Column(String(20), default="pause") # loop | pause
 
     created_at = Column(DateTime, server_default=func.now())
     updated_at = Column(DateTime, server_default=func.now(), onupdate=func.now())

@@ -435,7 +435,6 @@ async def add_to_cart_and_checkout(
             return result
             
         await record_step("Inyectando Clic Quirúrgico en Pagar ('Checkout')")
-        
         # BUCLE DE REINTENTO AGRESIVO: Clickear Pagar hasta que salgamos del carrito
         pagar_success = False
         import time
@@ -447,20 +446,28 @@ async def add_to_cart_and_checkout(
                 if await loading_mask.count() > 0:
                     await loading_mask.wait_for(state="hidden", timeout=3000)
 
-                # 2. Scrollear y hacer clic
-                await checkout_btn.scroll_into_view_if_needed()
-                box = await checkout_btn.bounding_box()
+                # 2. Click a todos los posibles botones visibles de Pagar
+                checkout_elements = await page.locator(".cart-footer__operate, .go_buy, .go_submit").locator("visible=true").all()
+                if not checkout_elements:
+                    logger.warning("No se encontraron elementos de Pagar visibles en este intento.")
                 
-                # Intentamos JS nativo primero por si hay superposiciones, si no, intentamos coordenadas
-                if intento % 2 != 0:
-                    logger.info("🖱️ Usando Click DOM (JS)...")
-                    await checkout_btn.evaluate("element => element.click()")
-                else:
-                    if box and box["width"] < 400 and box["height"] < 200:
-                        logger.info(f"🎯 Usando Coordenadas (X={box['x']}, Y={box['y']})...")
-                        await page.mouse.click(box["x"] + box["width"]/2, box["y"] + box["height"]/2)
-                    else:
-                        await checkout_btn.click(force=True)
+                for idx, btn in enumerate(checkout_elements):
+                    logger.info(f"🖱️ Disparando click al botón visible de Pagar #{idx}")
+                    try:
+                        # JS Click
+                        await btn.evaluate("element => element.click()")
+                        await page.wait_for_timeout(300)
+                        
+                        # Mouse Coordinate Click
+                        box = await btn.bounding_box()
+                        if box and box["width"] < 400 and box["height"] < 200:
+                            await page.mouse.click(box["x"] + box["width"]/2, box["y"] + box["height"]/2)
+                            await page.wait_for_timeout(300)
+                            
+                        # Playwright Force Click
+                        await btn.click(force=True, timeout=1000)
+                    except Exception as e:
+                        logger.warning(f"Fallo al clicar botón #{idx}: {str(e)[:50]}")
                 
                 # 3. Esperar que cambie la URL o aparezca el botón del siguiente paso
                 try:
