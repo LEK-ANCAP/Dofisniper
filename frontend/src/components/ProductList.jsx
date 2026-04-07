@@ -1,6 +1,7 @@
+import { useState, useEffect } from 'react';
 import {
   Trash2, Pause, Play, ExternalLink,
-  ShoppingCart, AlertTriangle, Package, Edit3, BarChart, X, target, Zap, Target, Eye, Database, Crosshair, Terminal, Camera, Activity, Download, Upload, MapPin, Truck
+  ShoppingCart, AlertTriangle, Package, Edit3, BarChart, X, Zap, Target, Eye, Database, Crosshair, Terminal, Camera, Activity, Download, Upload, MapPin, Truck, RefreshCw
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { updateProduct, manualCheckout, fetchLogs, fetchLiveView, fetchProductHistory, fetchCategories } from '../utils/api';
@@ -21,6 +22,24 @@ function TacticalBadge({ children, active, className="" }) {
            {children}
         </span>
     )
+}
+
+function ScanCountdown({ isActive }) {
+   const [secs, setSecs] = useState(10);
+   useEffect(() => {
+      if (!isActive) return;
+      const t = setInterval(() => {
+         setSecs(s => s > 0 ? s - 1 : 10);
+      }, 1000);
+      return () => clearInterval(t);
+   }, [isActive]);
+
+   if (!isActive) return null;
+   return (
+      <span className="flex items-center gap-1 text-[9px] text-amber-400 border border-amber-500/30 bg-amber-500/10 px-1 py-0.5 font-mono tracking-widest uppercase ml-2">
+         <RefreshCw size={10} className={`${secs < 3 ? 'animate-spin' : ''}`} /> T-{secs}S
+      </span>
+   );
 }
 
 function ProductItem({ product, i, onDelete, onToggle, onCheckout, onOpenEdit }) {
@@ -161,6 +180,7 @@ function ProductItem({ product, i, onDelete, onToggle, onCheckout, onOpenEdit })
                  <StatusIcon size={10} className={product.is_active ? statusConf.text : ''} /> 
                  {product.is_active ? statusConf.label : 'SUSPENDIDO'}
               </TacticalBadge>
+              <ScanCountdown isActive={product.is_active} />
            </div>
 
            <div className="flex items-center gap-3 text-xs text-surface-300 mt-2">
