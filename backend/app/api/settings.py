@@ -65,3 +65,43 @@ async def force_logout_browser():
         return {"success": True, "message": "Sesión del navegador destruida con éxito. Esperando nuevo login."}
     except Exception as e:
         return {"success": False, "message": f"Error al destruir sesión: {str(e)}"}
+
+@router.get("/session-status")
+async def check_session_status():
+    """Analiza en tiempo real el DOM para validar si la sesión viva se mantiene."""
+    try:
+        if getattr(browser_manager, "_context", None) is None:
+            return {"active": False, "message": "Navegador físico apagado"}
+            
+        page = await browser_manager.get_page()
+        await page.goto("https://www.dofimall.com/cart", wait_until="domcontentloaded", timeout=15000)
+        
+        is_anonymous = await page.locator("span:has-text('Iniciar sesión'):visible, .nav-top__login:visible").count() > 0
+        if "login" in page.url:
+            is_anonymous = True
+            
+        await browser_manager.close_page(page)
+        return {"active": not is_anonymous, "message": "OK"}
+    except Exception as e:
+        return {"active": False, "message": f"Error: {str(e)}"}
+
+@router.post("/force-login")
+async def manual_force_login(db: AsyncSession = Depends(get_db)):
+    """Inyecta el bot inmediatamente en la ruta de inicio de sesión."""
+    result = await db.execute(select(AppSettings).limit(1))
+    sys_settings = result.scalar_one_or_none()
+    
+    if not sys_settings or not sys_settings.dofimall_email:
+         return {"success": False, "message": "Faltan credenciales configuradas en el panel."}
+         
+    try:
+        page = await browser_manager.get_page()
+        await page.goto("https://www.dofimall.com/cart", wait_until="domcontentloaded", timeout=20000)
+        
+        from app.scraper.purchase import execute_login_bypass
+        res = await execute_login_bypass(page, sys_settings.dofimall_email, sys_settings.dofimall_password)
+        
+        await browser_manager.close_page(page)
+        return res
+    except Exception as e:
+        return {"success": False, "message": f"Fallo al forzar inyección: {str(e)}"}

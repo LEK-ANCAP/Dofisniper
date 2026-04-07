@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { Settings, Bell, Send, UserCheck, Shield, Tag, Plus, Trash2 } from 'lucide-react';
-import { fetchConfig, updateConfig, testNotification, fetchSettings, updateSettings, forceLogout, fetchCategories, createCategory, deleteCategory } from '../utils/api';
+import { fetchConfig, updateConfig, testNotification, fetchSettings, updateSettings, forceLogout, fetchCategories, createCategory, deleteCategory, checkSessionStatus, forceLogin } from '../utils/api';
 import { toast } from 'react-hot-toast';
 
 export default function ConfigPanel() {
@@ -10,6 +10,7 @@ export default function ConfigPanel() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [keepAliveEnabled, setKeepAliveEnabled] = useState(false);
+  const [sessionStatus, setSessionStatus] = useState({ active: false, checking: true });
 
   // Categorías
   const [categories, setCategories] = useState([]);
@@ -22,19 +23,23 @@ export default function ConfigPanel() {
 
   const loadData = async () => {
     try {
-      const [configData, settingsData, cats] = await Promise.all([
+      const [configData, settingsData, cats, sessStat] = await Promise.all([
         fetchConfig(),
         fetchSettings(),
-        fetchCategories()
+        fetchCategories(),
+        checkSessionStatus()
       ]);
       setEnabled(configData.notifications_enabled);
       setEmail(settingsData.dofimall_email || '');
       setPassword(settingsData.dofimall_password || '');
       setKeepAliveEnabled(settingsData.keep_alive_enabled || false);
       setCategories(cats);
+      
+      setSessionStatus({ active: sessStat.active, checking: false });
     } catch (e) {
       console.error(e);
       toast.error('Error cargando configuración o credenciales');
+      setSessionStatus({ active: false, checking: false });
     } finally {
       setLoading(false);
     }
@@ -90,11 +95,31 @@ export default function ConfigPanel() {
       const res = await forceLogout();
       if (res.success) {
         toast.success(res.message, { id: toastId });
+        setSessionStatus({ active: false, checking: false });
       } else {
         toast.error(res.message, { id: toastId });
       }
     } catch (e) {
       toast.error('Fallo al destruir la sesión: ' + e.message, { id: toastId });
+    }
+  };
+
+  const handleForceLoginTrigger = async () => {
+    const toastId = toast.loading('Escanenado e Inyectando sesión en viewport oculto...');
+    try {
+       setSessionStatus({ ...sessionStatus, checking: true });
+       const res = await forceLogin();
+       if (res.success) {
+           toast.success('Bot Inyectado: ' + res.message, { id: toastId });
+       } else {
+           toast.error(res.message || 'Fallo al iniciar sesión.', { id: toastId });
+       }
+       // Refrescar estado post-login
+       const newStat = await checkSessionStatus();
+       setSessionStatus({ active: newStat.active, checking: false });
+    } catch (e) {
+       toast.error('Error durante inyección: ' + e.message, { id: toastId });
+       setSessionStatus({ active: false, checking: false });
     }
   };
 
@@ -232,23 +257,47 @@ export default function ConfigPanel() {
         </div>
 
         {/* Keep-Alive */}
-        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between p-4 bg-surface-900 rounded-lg border border-surface-700">
-          <div className="flex items-start gap-4 mb-4 sm:mb-0">
-            <div className={`p-3 rounded-full ${keepAliveEnabled ? 'bg-amber-500/20 text-amber-400' : 'bg-surface-700 text-surface-400'}`}>
-              <Shield size={24} />
-            </div>
-            <div>
-              <h3 className="font-medium text-white text-md">Keep-Alive (Anti-Cierre de Sesión)</h3>
-              <p className="text-surface-400 text-sm mt-1 max-w-md">
-                Evita que DofiMall caduque tu sesión visitando el carrito en 2º plano silenciosamente cada 5 minutos.
-              </p>
-            </div>
-          </div>
-          
-          <label className="relative inline-flex items-center cursor-pointer ml-auto sm:ml-0">
-            <input type="checkbox" className="sr-only peer" checked={keepAliveEnabled} onChange={handleKeepAliveToggle} />
-            <div className="w-14 h-7 bg-surface-600 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-0.5 after:left-[4px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-6 after:w-6 after:transition-all peer-checked:bg-amber-500"></div>
-          </label>
+        <div className="flex flex-col p-4 bg-surface-900 rounded-lg border border-surface-700">
+           <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between mb-2">
+              <div className="flex items-start gap-4 mb-4 sm:mb-0">
+                <div className={`relative p-3 rounded-full ${keepAliveEnabled ? 'bg-amber-500/20 text-amber-400' : 'bg-surface-700 text-surface-400'}`}>
+                  <Shield size={24} />
+                  {!sessionStatus.checking && (
+                    <div className={`absolute bottom-0 right-0 w-3 h-3 rounded-full border-2 border-surface-900 ${sessionStatus.active ? 'bg-emerald-500' : 'bg-red-500'}`} title={sessionStatus.active ? 'Sesión Viva' : 'Sesión Caducada'}></div>
+                  )}
+                </div>
+                <div>
+                  <h3 className="font-medium text-white text-md flex items-center gap-2">
+                     Keep-Alive (Anti-Cierre de Sesión)
+                     {sessionStatus.checking ? (
+                        <span className="text-[10px] bg-brand-500/20 text-brand-400 px-1.5 py-0.5 rounded animate-pulse">Comprobando...</span>
+                     ) : sessionStatus.active ? (
+                        <span className="text-[10px] bg-emerald-500/20 text-emerald-400 px-1.5 py-0.5 rounded border border-emerald-500/30">ACTIVA</span>
+                     ) : (
+                        <span className="text-[10px] bg-red-500/20 text-red-400 px-1.5 py-0.5 rounded border border-red-500/30">EXPIRADA</span>
+                     )}
+                  </h3>
+                  <p className="text-surface-400 text-sm mt-1 max-w-md">
+                    Evita que DofiMall caduque tu sesión visitando el carrito en 2º plano silenciosamente cada 5 minutos.
+                  </p>
+                </div>
+              </div>
+              
+              <label className="relative inline-flex items-center cursor-pointer ml-auto sm:ml-0">
+                <input type="checkbox" className="sr-only peer" checked={keepAliveEnabled} onChange={handleKeepAliveToggle} />
+                <div className="w-14 h-7 bg-surface-600 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-0.5 after:left-[4px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-6 after:w-6 after:transition-all peer-checked:bg-amber-500"></div>
+              </label>
+           </div>
+           
+           <div className="flex justify-end mt-2">
+               <button 
+                  onClick={handleForceLoginTrigger}
+                  disabled={sessionStatus.checking}
+                  className="px-4 py-2 bg-surface-800 hover:bg-surface-700 text-xs font-semibold text-white rounded border border-surface-600 transition-colors disabled:opacity-50"
+               >
+                  ¿Sesión expirada? Escanear y forzar inyección ahora
+               </button>
+           </div>
         </div>
 
         {/* Categories */}
