@@ -195,46 +195,46 @@ export default function App() {
       />
 
       {/* Header HUD */}
-      <header className="border-b border-tactical-green/30 bg-black/80 backdrop-blur-sm sticky top-0 z-50">
+      <header className="border-b border-brand-400/30 bg-surface-900/80 backdrop-blur-sm sticky top-0 z-50">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 py-3 flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 bg-tactical-green/10 border border-tactical-green flex items-center justify-center relative group overflow-hidden">
+            <div className="w-10 h-10 bg-brand-500/10 border border-brand-400 flex items-center justify-center relative group overflow-hidden">
               <div className="absolute inset-0 bg-[linear-gradient(rgba(0,255,65,0.1)_1px,transparent_1px),linear-gradient(90deg,rgba(0,255,65,0.1)_1px,transparent_1px)] bg-[size:5px_5px]"></div>
-              <Crosshair size={22} className="text-tactical-green relative z-10 animate-[radar_4s_linear_infinite]" />
+              <Crosshair size={22} className="text-brand-400 relative z-10 animate-[radar_4s_linear_infinite]" />
             </div>
             <div>
-              <h1 className="text-lg font-mono font-bold tracking-widest text-tactical-green" style={{ textShadow: '0 0 10px rgba(0,255,65,0.4)' }}>
+              <h1 className="text-lg  font-bold tracking-wider text-brand-400" style={{ textShadow: '0 0 10px rgba(0,255,65,0.4)' }}>
                 DOFIMALL_SNIPER
               </h1>
-              <p className="text-[9px] text-tactical-green/60 uppercase tracking-[0.3em] font-mono">Control Táctico Central</p>
+              <p className="text-[9px] text-brand-400/60 uppercase tracking-[0.3em] ">Control Táctico Central</p>
             </div>
           </div>
 
           <div className="flex items-center gap-4">
             
             {/* Session Indicator Badge */}
-            <div className="flex items-center gap-2 px-3 py-1.5 border border-tactical-border bg-tactical-panel font-mono text-[10px] tracking-widest uppercase">
+            <div className="flex items-center gap-2 px-3 py-1.5 border border-surface-700 bg-surface-800  text-[10px] tracking-wider uppercase">
               {sessionActive ? (
                 <>
-                  <Activity size={12} className="text-tactical-green animate-flicker" />
-                  <span className="hidden sm:inline text-tactical-green font-bold">[ UPLINK_SECURE ]</span>
+                  <Activity size={12} className="text-brand-400 animate-pulse" />
+                  <span className="hidden sm:inline text-brand-400 font-bold">[ UPLINK_SECURE ]</span>
                 </>
               ) : (
                 <>
-                  <ShieldAlert size={12} className="text-tactical-red" />
-                  <span className="hidden sm:inline font-bold text-tactical-red">
+                  <ShieldAlert size={12} className="text-red-500" />
+                  <span className="hidden sm:inline font-bold text-red-500">
                      {isInjecting ? '[ INJECTING... ]' : `[ SIGNAL_LOST: ${autoLoginTimer}s ]`}
                   </span>
                 </>
               )}
             </div>
-            <div className="h-6 w-px bg-tactical-green/20 hidden sm:block" />
+            <div className="h-6 w-px bg-brand-500/20 hidden sm:block" />
 
             <button
                onMouseEnter={() => playTacticalClick(0.01)}
                onClick={() => { playTacticalClick(); handleLogout(); }}
-               className="flex items-center gap-2 px-3 py-1.5 border border-transparent hover:border-tactical-red/50 bg-black hover:bg-tactical-red/10
-                          text-surface-500 hover:text-tactical-red text-[10px] font-mono tracking-widest uppercase transition-all"
+               className="flex items-center gap-2 px-3 py-1.5 border border-transparent hover:border-red-500/50 bg-surface-900 hover:bg-red-500/10
+                          text-surface-500 hover:text-red-500 text-[10px]  tracking-wider uppercase transition-all"
                title="Cerrar Misión"
             >
               <LogOut size={12} />
@@ -252,7 +252,7 @@ export default function App() {
         )}
 
         <div className="flex flex-col sm:flex-row gap-4 justify-between items-start sm:items-center">
-          <div className="flex gap-1 overflow-x-auto bg-black border border-tactical-green/30 p-1 w-full sm:w-fit filter drop-shadow-[0_0_10px_rgba(0,255,65,0.05)]">
+          <div className="flex gap-1 overflow-x-auto bg-surface-900 border border-brand-400/30 p-1 w-full sm:w-fit filter drop-shadow-[0_0_10px_rgba(0,255,65,0.05)]">
             {[
               { key: 'products', label: 'F1: BLANCOS', icon: Crosshair },
             { key: 'analytics', label: 'F2: INTEL_SYS', icon: BarChart2 },
@@ -263,10 +263,10 @@ export default function App() {
               key={key}
               onMouseEnter={() => playTacticalClick(0.01)}
               onClick={() => { playTacticalClick(); setTab(key); }}
-              className={`flex items-center gap-2 px-4 py-2 text-[10px] uppercase font-mono tracking-widest font-bold transition-all border
+              className={`flex items-center gap-2 px-4 py-2 text-[10px] uppercase  tracking-wider font-bold transition-all border
                 ${tab === key
-                  ? 'bg-tactical-green text-black border-tactical-green shadow-inner shadow-black/50'
-                  : 'bg-black text-tactical-green/50 border-transparent hover:text-tactical-green hover:bg-tactical-green/10 hover:border-tactical-green/20'
+                  ? 'bg-brand-400 text-surface-900 border-brand-400 shadow-inner shadow-transparent'
+                  : 'bg-surface-900 text-brand-400/50 border-transparent hover:text-brand-400 hover:bg-brand-500/10 hover:border-brand-400/20'
                 }`}
             >
               <Icon size={12} />
@@ -278,7 +278,7 @@ export default function App() {
           <button 
              onMouseEnter={() => playTacticalClick(0.01)}
              onClick={() => { playTacticalClick(); setShowAddForm(!showAddForm); }}
-             className={`flex items-center gap-2 px-4 py-2 font-mono font-bold text-[10px] uppercase tracking-widest transition-all border ${showAddForm ? 'bg-tactical-green text-black border-tactical-green' : 'bg-black text-blue-400 border-blue-500/30 hover:bg-blue-500/10 shadow-[0_0_10px_rgba(59,130,246,0.1)]'}`}
+             className={`flex items-center gap-2 px-4 py-2  font-bold text-[10px] uppercase tracking-wider transition-all border ${showAddForm ? 'bg-brand-400 text-surface-900 border-brand-400' : 'bg-surface-900 text-blue-400 border-blue-500/30 hover:bg-blue-500/10 shadow-[0_0_10px_rgba(59,130,246,0.1)]'}`}
           >
              <Crosshair size={12} />
              {showAddForm ? 'CANCEL_INPUT' : 'ASIGNAR_NUEVO_BLANCO'}
