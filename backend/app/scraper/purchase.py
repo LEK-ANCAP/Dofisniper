@@ -342,21 +342,28 @@ async def add_to_cart_and_checkout(
 
         # ── Paso 3: Verificar Selección Inteligente ──
         await record_step("Fase: Verificación inteligente de items")
-        try:
-            # Esperamos que la página reflexione selección (texto o clases css).
-            # DofiMall usa Vue con la clase 'active' en el botón go_buy cuando está listo para pagar
-            ready_indicator = page.locator(".go_buy.active, .go_submit.active").first
-            await ready_indicator.wait_for(state="attached", timeout=3000)
-            logger.info("✅ Vue.js confirma que los productos están seleccionados (botón activo).")
-        except PlaywrightTimeout:
-            logger.info("⚠️ El botón Pagar no está activo. Probablemente el carrito esté desmarcado.")
+        
+        # Verificar activamente si el carrito indica '0 productos'
+        cart_empty_text = page.locator("body", has_text="Ha seleccionado 0 productos")
+        
+        if await cart_empty_text.count() > 0:
+            logger.info("⚠️ El carrito muestra 0 productos seleccionados. Forzando selección de los checkboxes.")
             try:
-                # Forzar click de seleccionar todo solo si es estrictamente necesario
-                select_all = page.locator("span, div").filter(has_text="Seleccionar todo").last
-                await select_all.scroll_into_view_if_needed()
-                await select_all.click(force=True)
-                await page.wait_for_timeout(1000)
-            except: pass
+                # Buscar checkboxes de Element UI típicos en Vue o un checkbox nativo
+                checkboxes = await page.locator(".el-checkbox, .el-checkbox__original, input[type='checkbox']").all()
+                if checkboxes:
+                    # Clicamos el primer checkbox posible (suele ser el header de 'Seleccionar Todo' o el item directo)
+                    await checkboxes[0].click(force=True)
+                    await page.wait_for_timeout(1000)
+                    
+                    # Clic extra en el último si el primero falló por estar inactivo
+                    if await cart_empty_text.count() > 0 and len(checkboxes) > 1:
+                        await checkboxes[-1].click(force=True)
+                        await page.wait_for_timeout(1000)
+            except Exception as e:
+                logger.warning(f"Error intentando forzar marca de checkbox: {e}")
+        else:
+            logger.info("✅ Ya existen productos seleccionados en el carrito.")
 
         # ── Ajustar Cantidad Exacta dentro del carrito ──
         if target_quantity > 1:
