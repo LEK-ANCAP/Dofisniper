@@ -61,218 +61,236 @@ logger.add(
 # Scheduled Job
 # ══════════════════════════════════════════════════════════════
 
-async def check_all_products():
-    """Job principal: recorre todos los productos activos y comprueba stock via API."""
-    logger.info("🔄 ═══ Iniciando ciclo de comprobación de stock ═══")
+active_checkout_tasks = {}
 
+async def persistent_checkout_loop(product_id: int):
+    """
+    Mantene un bucle continuo bloqueado al producto hasta que logre la compra o deje de haber stock.
+    Esto debe invocarse como un Task asíncrono para que no bloquee nada más.
+    """
+    logger.info(f"⚡ [HILO CHECKOUT {product_id}] Inicializando ataque continuo...")
+    while True:
+        try:
+            async with async_session() as db:
+                product = await db.execute(select(Product).where(Product.id == product_id))
+                product = product.scalar_one_or_none()
+                if not product or not product.is_active or not product.auto_buy:
+                    logger.warning(f"🛑 [HILO CHECKOUT {product_id}] Abortado: Inactivo o AutoBuy deshabilitado.")
+                    break
+                
+                # Check for stock right before attacking
+                stock_result = await check_stock(None, product.url)
+                if not stock_result.is_available or stock_result.total_available < product.min_stock_to_trigger:
+                    logger.warning(f"🚫 [HILO CHECKOUT {product_id}] Stock agotado ({stock_result.total_available}U). Abortando auto-compra y regresando a Monitoreo.")
+                    product.status = ProductStatus.IN_STOCK if stock_result.is_available else ProductStatus.MONITORING
+                    await db.commit()
+                    break
+
+                settings_db = await db.execute(select(AppSettings).limit(1))
+                sys_settings = settings_db.scalar_one_or_none()
+                email = sys_settings.dofimall_email if sys_settings else ""
+                password = sys_settings.dofimall_password if sys_settings else ""
+
+                actual_target_qty = product.target_quantity
+                if actual_target_qty == -1:
+                    actual_target_qty = stock_result.total_available
+
+                if not browser_manager.is_running:
+                    logger.error(f"❌ [HILO CHECKOUT {product_id}] ERROR FATAL: Browser Manager no está corriendo.")
+                    await asyncio.sleep(5)
+                    continue
+
+                page = await browser_manager.get_page()
+                logger.info(f"⚡ [HILO CHECKOUT {product_id}] Disparando Playwright (Pidiendo {actual_target_qty}U)...")
+
+                checkout_result = await add_to_cart_and_checkout(
+                    page, product.url,
+                    target_quantity=actual_target_qty,
+                    email=email, password=password,
+                    product_id=product.id
+                )
+                
+                await browser_manager.close_page(page)
+
+                if checkout_result.get("success"):
+                    await _log_action(db, product.id, product.name, "auto_purchase", LogLevel.SUCCESS, "Auto-compra confirmada.")
+                    await send_telegram_notification(
+                        subject="AUTO-COMPRA LOGRADA ⚡", product_name=product.name, product_url=product.url, 
+                        checkout_url=checkout_result.get("checkout_url"), is_purchase=True, quantity=actual_target_qty
+                    )
+                    product.status = ProductStatus.RESERVED
+                    product.auto_buy = False # Safety net
+                    await db.commit()
+                    logger.success(f"🎉 [HILO CHECKOUT {product_id}] Ojetivo Asegurado. Cerrando hilo.")
+                    break
+                else:
+                    await _log_action(db, product.id, product.name, "auto_purchase_failed", LogLevel.ERROR, "Reintentando ataque...")
+                    logger.warning(f"⚠️ [HILO CHECKOUT {product_id}] Falló intento. Reanudando loop casi inmediatamente...")
+                    await asyncio.sleep(2) # Breve pausa para no spamear totalmente el thread
+                    
+        except Exception as e:
+            logger.error(f"💥 [HILO CHECKOUT {product_id}] Excepción en loop agresivo: {e}")
+            await asyncio.sleep(2)
+            
+    # Cleanup task registry
+    if product_id in active_checkout_tasks:
+        del active_checkout_tasks[product_id]
+
+
+async def process_single_product(product_id: int):
+    """Job asignado dinámicamente: Solo comprueba el stock de 1 producto"""
     async with async_session() as db:
-        result = await db.execute(
-            select(Product)
-            .where(Product.is_active == True)
-            .where(Product.status.in_([
-                ProductStatus.MONITORING,
-                ProductStatus.ERROR,
-                ProductStatus.IN_STOCK,
-            ]))
-        )
-        products = result.scalars().all()
+        result = await db.execute(select(Product).where(Product.id == product_id))
+        product = result.scalar_one_or_none()
 
-        if not products:
-            logger.info("📭 No hay productos activos para monitorizar")
+        if not product or not product.is_active:
             return
 
-        logger.info(f"📋 {len(products)} productos a comprobar")
+        # Skip scanning if it's already reserved or paused
+        if product.status in [ProductStatus.RESERVED, ProductStatus.PAUSED]:
+            return
 
-        for product in products:
-            try:
-                stock_result = await check_stock(None, product.url)
+        # If it's purchasing, do not scan it redundantly here, the checkout loop handles it
+        if product.status == ProductStatus.PURCHASING:
+            return
 
-                # Actualizar producto en DB
-                product.last_checked = datetime.now(timezone.utc)
-                product.check_count += 1
+        try:
+            stock_result = await check_stock(None, product.url)
+            
+            product.last_checked = datetime.now(timezone.utc)
+            product.check_count += 1
+            
+            if stock_result.product_name and product.name == "Sin nombre":
+                product.name = stock_result.product_name
+            if stock_result.price:
+                product.price = stock_result.price
+            if stock_result.image_url:
+                product.image_url = stock_result.image_url
 
-                if stock_result.product_name and product.name == "Sin nombre":
-                    product.name = stock_result.product_name
-                if stock_result.price:
-                    product.price = stock_result.price
-                if stock_result.image_url:
-                    product.image_url = stock_result.image_url
+            # Snapshot for intelligence
+            snapshot = ProductSnapshot(
+                product_id=product.id,
+                stock_quantity=stock_result.warehouse_stock,
+                transit_quantity=stock_result.transit_stock
+            )
+            db.add(snapshot)
+            asyncio.create_task(calculate_product_analytics(product.id, db))
+            
+            # Stock changes
+            delta_warehouse = stock_result.warehouse_stock - product.warehouse_stock
+            delta_transit = stock_result.transit_stock - product.transit_stock
+            total_delta = delta_warehouse + delta_transit
+            is_stock_changed = total_delta != 0
 
-                # ── Market Intelligence Snapshot ──
-                snapshot = ProductSnapshot(
+            if is_stock_changed:
+                history = StockHistory(
                     product_id=product.id,
-                    stock_quantity=stock_result.warehouse_stock,
-                    transit_quantity=stock_result.transit_stock
+                    old_warehouse_stock=product.warehouse_stock,
+                    new_warehouse_stock=stock_result.warehouse_stock,
+                    old_transit_stock=product.transit_stock,
+                    new_transit_stock=stock_result.transit_stock
                 )
-                db.add(snapshot)
-                await db.commit()
-                # Run analytics engine asynchronously so we don't block the loop
-                asyncio.create_task(calculate_product_analytics(product.id, db))
+                db.add(history)
+            
+            product.warehouse_stock = stock_result.warehouse_stock
+            product.transit_stock = stock_result.transit_stock
+            product.stock_type = stock_result.stock_type
+            product.stock_type_label = stock_result.stock_type_label
+            if stock_result.warehouses:
+                product.warehouse_breakdown = [w.to_dict() for w in stock_result.warehouses]
+            
+            if stock_result.is_available:
+                product.last_in_stock = datetime.now(timezone.utc)
+                product.status = ProductStatus.IN_STOCK
                 
-                # Calcular cambios de stock (Logging antiguo)
-                delta_warehouse = stock_result.warehouse_stock - product.warehouse_stock
-                delta_transit = stock_result.transit_stock - product.transit_stock
-                total_delta = delta_warehouse + delta_transit
-                is_stock_changed = total_delta != 0
-
                 if is_stock_changed:
-                    history = StockHistory(
-                        product_id=product.id,
-                        old_warehouse_stock=product.warehouse_stock,
-                        new_warehouse_stock=stock_result.warehouse_stock,
-                        old_transit_stock=product.transit_stock,
-                        new_transit_stock=stock_result.transit_stock
-                    )
-                    db.add(history)
-
-                # Guardar datos de stock
-                product.warehouse_stock = stock_result.warehouse_stock
-                product.transit_stock = stock_result.transit_stock
-                product.stock_type = stock_result.stock_type
-                product.stock_type_label = stock_result.stock_type_label
-                product.warehouse_breakdown = [
-                    w.to_dict() for w in stock_result.warehouses
-                ] if stock_result.warehouses else None
-
-                if stock_result.is_available:
-                    es_nuevo_stock = product.status != ProductStatus.IN_STOCK
+                    icon = "📈" if total_delta > 0 else "📉"
+                    word = "Aumentó" if total_delta > 0 else "Disminuyó"
+                    parts = []
+                    if delta_warehouse != 0: parts.append(f"{'+' if delta_warehouse>0 else ''}{delta_warehouse} almacén")
+                    if delta_transit != 0: parts.append(f"{'+' if delta_transit>0 else ''}{delta_transit} tránsito")
                     
-                    product.last_in_stock = datetime.now(timezone.utc)
-                    product.status = ProductStatus.IN_STOCK
-
-                    # Notificar y hacer log solo al detectar CAMBIO DE STOCK
-                    if is_stock_changed:
-                        change_msg = ""
-                        icon = "📈" if total_delta > 0 else "📉"
-                        word = "Aumentó" if total_delta > 0 else "Disminuyó"
-                        parts = []
-                        if delta_warehouse != 0:
-                            parts.append(f"{'+' if delta_warehouse>0 else ''}{delta_warehouse} en almacén")
-                        if delta_transit != 0:
-                            parts.append(f"{'+' if delta_transit>0 else ''}{delta_transit} en tránsito")
-                        change_msg = (
-                            f"{icon} <b>{word} en {abs(total_delta)} unidades</b> ({', '.join(parts)})\n\n"
-                            f"<b>Cantidad total:</b> {stock_result.total_available}\n"
-                            f"<b>Cantidad por almacenes:</b>\n{stock_result.warehouse_breakdown}"
-                        )
-                        
-                        log_plain_msg = (
-                            f"{icon} {word} en {abs(total_delta)} ("
-                            f"{', '.join(parts)}). Total: {stock_result.total_available}U\n"
-                            f"{stock_result.warehouse_breakdown}"
-                        )
-                        
-                        # Escribir a la base de datos visual del frontend
-                        await _log_action(
-                            db, product.id, product.name,
-                            "stock_changed", LogLevel.SUCCESS if total_delta > 0 else LogLevel.WARNING, log_plain_msg,
+                    change_msg = f"{icon} <b>{word} en {abs(total_delta)} unidades</b> ({', '.join(parts)})\n\n<b>Total:</b> {stock_result.total_available}U"
+                    log_plain_msg = f"{icon} {word} en {abs(total_delta)} ({', '.join(parts)}). Total: {stock_result.total_available}U"
+                    
+                    await _log_action(db, product.id, product.name, "stock_changed", LogLevel.SUCCESS if total_delta > 0 else LogLevel.WARNING, log_plain_msg)
+                    
+                    config = get_app_config()
+                    if config.get("notifications_enabled", True):
+                        await _notify(
+                            subject=f"Cambio de Stock: {product.name}",
+                            product_name=product.name, product_url=product.url, price=stock_result.price, stock_change_msg=change_msg
                         )
 
-                        config = get_app_config()
-                        if config.get("notifications_enabled", True):
-                            await _notify(
-                                subject=f"Cambio de Stock: {product.name}",
-                                product_name=product.name,
-                                product_url=product.url,
-                                price=stock_result.price,
-                                stock_change_msg=change_msg
-                            )
-                        else:
-                            logger.info(f"🔕 Notificación de stock omitida (desactivado en configuración)")
-
-                    # ── AUTO-RESERVA (Checkout Automático) ──
-                    if product.auto_buy and browser_manager.is_running and stock_result.total_available >= product.min_stock_to_trigger:
-                        try:
-                            settings_db = await db.execute(select(AppSettings).limit(1))
-                            sys_settings = settings_db.scalar_one_or_none()
-                            email = sys_settings.dofimall_email if sys_settings else ""
-                            password = sys_settings.dofimall_password if sys_settings else ""
-
-                            logger.info(f"⚡ Iniciando auto-checkout para {product.name} (Meta: {'MÁX' if product.target_quantity == -1 else product.target_quantity} uds)")
-                            
-                            # Avisamos al frontend visualmente que estamos atacando
-                            product.status = ProductStatus.PURCHASING
-                            await db.commit()
-                            
-                            page = await browser_manager.get_page()
-                            
-                            actual_target_qty = product.target_quantity
-                            if actual_target_qty == -1:
-                                actual_target_qty = stock_result.total_available
-                                logger.info(f"Opcion MAX seleccionada. Usando iterador de stock: {actual_target_qty}")
-
-                            checkout_result = await add_to_cart_and_checkout(
-                                page, product.url,
-                                target_quantity=actual_target_qty,
-                                email=email, password=password,
-                                product_id=product.id
-                            )
-                            
-                            if checkout_result.get("success"):
-                                await _log_action(
-                                    db, product.id, product.name,
-                                    "auto_purchase", LogLevel.SUCCESS,
-                                    checkout_result.get("message", "Auto-compra finalizada")
-                                )
-                                
-                                # Notificación de Compra Exitosa
-                                await send_telegram_notification(
-                                    subject="AUTO-COMPRA LOGRADA ⚡",
-                                    product_name=product.name,
-                                    product_url=product.url,
-                                    checkout_url=checkout_result.get("checkout_url"),
-                                    is_purchase=True,
-                                    quantity=actual_target_qty,
-                                    warehouse=stock_result.warehouse_breakdown
-                                )
-
-                                # Cambiar estado a RESERVED para que deje de comprobarse en bucle
-                                product.status = ProductStatus.RESERVED
-                                logger.warning(f"🔴 Producto {product.id} reservado, deteniendo monitorización...")
-                            else:
-                                product.status = ProductStatus.IN_STOCK
-                                await db.commit()
-                                await _log_action(
-                                    db, product.id, product.name,
-                                    "auto_purchase_failed", LogLevel.ERROR,
-                                    checkout_result.get("message", "Error en auto-checkout")
-                                )
-                            
-                            await browser_manager.close_page(page)
-                        except Exception as e:
-                            logger.error(f"❌ Error en auto-checkout: {e}")
-                            product.status = ProductStatus.IN_STOCK
-                            await db.commit()
-                            await _log_action(
-                                db, product.id, product.name,
-                                "auto_purchase_error", LogLevel.ERROR,
-                                f"Excepción: {str(e)}"
-                            )
-
+                # TRIGGER CHECKOUT CONCURRENTLY
+                if product.auto_buy and browser_manager.is_running and stock_result.total_available >= product.min_stock_to_trigger:
+                    if product.id not in active_checkout_tasks:
+                        logger.warning(f"🚀 INICIANDO VUELO TÁCTICO AUTO-COMPRA PARA: {product.name}")
+                        product.status = ProductStatus.PURCHASING
+                        await db.commit()
+                        active_checkout_tasks[product.id] = asyncio.create_task(persistent_checkout_loop(product.id))
+            else:
+                if stock_result.error:
+                    product.status = ProductStatus.ERROR
+                    await _log_action(db, product.id, product.name, "check_error", LogLevel.WARNING, stock_result.error)
                 else:
-                    # No disponible
-                    if stock_result.error:
-                        product.status = ProductStatus.ERROR
-                        await _log_action(
-                            db, product.id, product.name,
-                            "check_error", LogLevel.WARNING,
-                            stock_result.error,
-                        )
-                    else:
-                        product.status = ProductStatus.MONITORING
+                    product.status = ProductStatus.MONITORING
 
-                await db.commit()
+            await db.commit()
+            
+        except Exception as e:
+            logger.error(f"💥 Error procesando Job_{product_id}: {e}")
+            product.status = ProductStatus.ERROR
+            await db.commit()
+            await _log_action(db, product.id, product.name, "error", LogLevel.ERROR, str(e))
 
-            except Exception as e:
-                logger.error(f"💥 Error procesando {product.url}: {e}")
-                product.status = ProductStatus.ERROR
-                await db.commit()
-                await _log_action(
-                    db, product.id, product.name,
-                    "error", LogLevel.ERROR, str(e),
-                )
 
-    logger.info("🔄 ═══ Ciclo de comprobación completado ═══")
+async def job_synchronizer():
+    """
+    Se ejecuta globalmente cada pocos segundos para levantar o destruir procesos por cada producto.
+    """
+    async with async_session() as db:
+        settings_db = await db.execute(select(AppSettings).limit(1))
+        sys_settings = settings_db.scalar_one_or_none()
+        interval_secs = sys_settings.scan_interval_seconds if sys_settings and sys_settings.scan_interval_seconds else 10
+
+        # Obtener todos los productos
+        result = await db.execute(select(Product))
+        products = result.scalars().all()
+
+        current_jobs_ids = [job.id for job in scheduler.get_jobs()]
+        active_db_ids = set()
+
+        for p in products:
+            job_id = f"scan_product_{p.id}"
+            
+            # Si el producto está activo, intentamos asegurarnos de que el job exista con el intervalo correcto
+            if p.is_active and p.status not in [ProductStatus.PAUSED]:
+                active_db_ids.add(job_id)
+                job = scheduler.get_job(job_id)
+                # Solo updatear o añadir si no existe
+                if not job:
+                    scheduler.add_job(
+                        process_single_product,
+                        "interval",
+                        seconds=interval_secs,
+                        args=[p.id],
+                        id=job_id,
+                        replace_existing=True
+                    )
+                else:
+                    # En apscheduler podemos reprogramar si el intervalo cambió
+                    if hasattr(job.trigger, 'interval') and job.trigger.interval.total_seconds() != interval_secs:
+                        scheduler.reschedule_job(job_id, trigger='interval', seconds=interval_secs)
+            else:
+                # Si no está activo en DB pero existe el job, se borra
+                if job_id in current_jobs_ids:
+                    scheduler.remove_job(job_id)
+                    
+        # Borrar jobs residuales que ya ni existan en BD
+        for job_id in current_jobs_ids:
+            if job_id.startswith("scan_product_") and job_id not in active_db_ids:
+                scheduler.remove_job(job_id)
 
 
 async def _log_action(db, product_id, product_name, action, level, message):
@@ -399,14 +417,14 @@ async def lifespan(app: FastAPI):
     # Iniciar Browser Manager Persistente en una tarea de fondo
     asyncio.create_task(init_browser_background())
 
-    logger.info(f"⏰ Scheduler iniciado — comprobando cada 10 seg (Market Intelligence Hardcoded)")
+    logger.info(f"⏰ Scheduler iniciado — Orchestrator de Hilos corriendo cada 5s")
     
     scheduler.add_job(
-        check_all_products,
+        job_synchronizer,
         "interval",
-        seconds=10,
-        id="stock_checker",
-        name="Stock Checker",
+        seconds=5,
+        id="job_synchronizer",
+        name="Job Synchronizer",
         replace_existing=True,
         max_instances=1,
     )
@@ -480,37 +498,20 @@ async def get_dashboard(db: AsyncSession = Depends(get_db)):
         (p.last_checked for p in all_products if p.last_checked), default=None
     )
 
-    # Calcular próximo check del scheduler
-    next_check = None
-    job = scheduler.get_job("stock_checker")
-    if job and job.next_run_time:
-        next_check = job.next_run_time.isoformat()
-
     return DashboardStats(
         total_products=len(all_products),
-        monitoring=sum(1 for p in all_products if p.status == ProductStatus.MONITORING),
+        monitoring=sum(1 for p in all_products if p.is_active and p.status in [
+            ProductStatus.MONITORING, ProductStatus.IN_STOCK, ProductStatus.PURCHASING, ProductStatus.ERROR
+        ]),
         reserved=sum(1 for p in all_products if p.status == ProductStatus.RESERVED),
         in_stock=sum(1 for p in all_products if p.status == ProductStatus.IN_STOCK),
-        errors=sum(1 for p in all_products if p.status == ProductStatus.ERROR),
+        errors=sum(1 for p in all_products if p.is_active and p.status == ProductStatus.ERROR),
         total_checks=total_checks,
-        last_check=last_check,
-        next_check=next_check,
         scheduler_running=scheduler.running,
-        check_interval=settings.check_interval_minutes,
     )
 
 
-@app.post("/api/check-now", dependencies=[Depends(get_current_user)])
-async def trigger_check_now():
-    """Fuerza una comprobación inmediata."""
-    scheduler.add_job(
-        check_all_products,
-        id="manual_check",
-        name="Manual Check",
-        replace_existing=True,
-        max_instances=1,
-    )
-    return {"detail": "Comprobación manual iniciada"}
+# Endpoint /api/check-now eliminado (Ahora el sincronizador es continuo a 5s)
 
 
 @app.get("/api/health")

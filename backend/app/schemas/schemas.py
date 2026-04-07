@@ -98,10 +98,7 @@ class DashboardStats(BaseModel):
     in_stock: int
     errors: int
     total_checks: int
-    last_check: Optional[datetime] = None
-    next_check: Optional[str] = None
     scheduler_running: bool
-    check_interval: int = 1
 
 
 # --- Config ---
@@ -117,6 +114,7 @@ class AppSettingsSchema(BaseModel):
     dofimall_email: Optional[str] = None
     dofimall_password: Optional[str] = None
     keep_alive_enabled: Optional[bool] = False
+    scan_interval_seconds: int = 10
     
     class Config:
         from_attributes = True
@@ -125,6 +123,7 @@ class AppSettingsUpdate(BaseModel):
     dofimall_email: Optional[str] = None
     dofimall_password: Optional[str] = None
     keep_alive_enabled: Optional[bool] = None
+    scan_interval_seconds: Optional[int] = None
 
 
 # --- Authentication ---

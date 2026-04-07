@@ -435,32 +435,54 @@ async def add_to_cart_and_checkout(
             return result
             
         await record_step("Inyectando Clic Quirúrgico en Pagar ('Checkout')")
-        try:
-            # 1. Esperar que desaparezcan capas de carga comunes (bloqueadores visuales)
-            loading_mask = page.locator(".el-loading-mask:visible").first
-            if await loading_mask.count() > 0:
-                logger.info("⏳ Detectada máscara de carga, esperando a que desaparezca...")
-                await loading_mask.wait_for(state="hidden", timeout=5000)
-
-            # 2. Scrollear al botón
-            await checkout_btn.scroll_into_view_if_needed()
-            
-            # 3. Clic Quirúrgico Basado en Coordenadas (verificando que no sea toda la página)
-            box = await checkout_btn.bounding_box()
-            if box and box["width"] < 400 and box["height"] < 200:
-                logger.info(f"🎯 Calculadas coordenadas Box(X={box['x']}, Y={box['y']}). Disparando Mouse nativo.")
-                await page.mouse.click(box["x"] + box["width"] / 2, box["y"] + box["height"] / 2)
-            else:
-                # Si el box es gigante (ej. matcheó el #app), caemos al disparo JS seguro
-                await checkout_btn.evaluate("element => element.click()")
-                logger.info("🖱️ Fallback a Click JS nativo de Playwright por caja atípica")
-
-        except Exception as e:
-            await checkout_btn.evaluate("element => element.click()")
-            logger.info(f"🖱️ Fallback puro JS Click en 'Pagar'. Error previo: {e}")
         
-        # Esperamos explícitamente a que Vue monte la nueva pantalla
-        await page.wait_for_timeout(4000)
+        # BUCLE DE REINTENTO AGRESIVO: Clickear Pagar hasta que salgamos del carrito
+        pagar_success = False
+        import time
+        for intento in range(1, 5):
+            logger.info(f"🛒 Intento {intento} de hacer clic en Pagar...")
+            try:
+                # 1. Esperar que desaparezcan capas de carga comunes
+                loading_mask = page.locator(".el-loading-mask:visible").first
+                if await loading_mask.count() > 0:
+                    await loading_mask.wait_for(state="hidden", timeout=3000)
+
+                # 2. Scrollear y hacer clic
+                await checkout_btn.scroll_into_view_if_needed()
+                box = await checkout_btn.bounding_box()
+                
+                # Intentamos JS nativo primero por si hay superposiciones, si no, intentamos coordenadas
+                if intento % 2 != 0:
+                    logger.info("🖱️ Usando Click DOM (JS)...")
+                    await checkout_btn.evaluate("element => element.click()")
+                else:
+                    if box and box["width"] < 400 and box["height"] < 200:
+                        logger.info(f"🎯 Usando Coordenadas (X={box['x']}, Y={box['y']})...")
+                        await page.mouse.click(box["x"] + box["width"]/2, box["y"] + box["height"]/2)
+                    else:
+                        await checkout_btn.click(force=True)
+                
+                # 3. Esperar que cambie la URL o aparezca el botón del siguiente paso
+                try:
+                    # Esperamos hasta que la URL ya NO contenga '/cart'
+                    await page.wait_for_function("window.location.href.indexOf('cart') === -1", timeout=4000)
+                    logger.info("✅ Navegación fuera del carrito detectada tras clicar Pagar!")
+                    pagar_success = True
+                    break
+                except PlaywrightTimeout:
+                    logger.warning("⚠️ El clic en Pagar no hizo transición de página, reintentando...")
+                    await page.wait_for_timeout(1000)
+                    
+            except Exception as e:
+                logger.error(f"Error en el intento {intento} de clicar Pagar: {e}")
+                await page.wait_for_timeout(1000)
+                
+        if not pagar_success:
+            logger.error("❌ CRÍTICO: Fallaron todos los intentos de salir del carrito clickeando Pagar.")
+            # Podemos intentar dejar que el flujo siga por si acaso la validación de URL falló pero sí avanzó.
+        
+        # Esperamos explícitamente a que Vue estabilice la nueva pantalla de confirmación
+        await page.wait_for_timeout(3000)
 
         # ── Paso 4: Enviar pedido y aceptar condiciones ──
         await record_step("Fase: Confirmación final del pedido")

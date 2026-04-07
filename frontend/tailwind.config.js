@@ -26,6 +26,34 @@ export default {
           900: '#0f172a',
           950: '#020617',
         },
+        tactical: {
+          dark: '#030704',     // Pitch black with greenish tint
+          panel: '#0a120d',    // Slightly lighter for panels
+          border: '#102a1c',   // Dark green borders
+          green: '#00ff41',    // Neon Matrix Green
+          greenDim: '#008f11', // Dim Matrix Green
+          amber: '#ffb000',    // Alert Amber
+          red: '#ff003c',      // Laser red
+        }
+      },
+      animation: {
+        'scanline': 'scanline 8s linear infinite',
+        'flicker': 'flicker 0.15s infinite',
+        'radar': 'radar 4s linear infinite',
+      },
+      keyframes: {
+        scanline: {
+          '0%': { transform: 'translateY(-100%)' },
+          '100%': { transform: 'translateY(100vh)' },
+        },
+        flicker: {
+          '0%, 100%': { opacity: 1 },
+          '50%': { opacity: 0.8 },
+        },
+        radar: {
+          '0%': { transform: 'rotate(0deg)' },
+          '100%': { transform: 'rotate(360deg)' },
+        }
       },
     },
   },

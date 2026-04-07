@@ -5,12 +5,11 @@ const statCards = [
   { key: 'monitoring', label: 'Monitorizando', icon: Eye, color: 'text-amber-400', bg: 'bg-amber-500/10' },
   { key: 'reserved', label: 'Reservados', icon: ShoppingCart, color: 'text-emerald-400', bg: 'bg-emerald-500/10' },
   { key: 'errors', label: 'Errores', icon: AlertTriangle, color: 'text-red-400', bg: 'bg-red-500/10' },
-  { key: 'total_checks', label: 'Comprobaciones', icon: Hash, color: 'text-purple-400', bg: 'bg-purple-500/10' },
 ];
 
 export default function StatsBar({ stats, loading }) {
   return (
-    <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
+    <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
       {statCards.map(({ key, label, icon: Icon, color, bg }) => (
         <div
           key={key}

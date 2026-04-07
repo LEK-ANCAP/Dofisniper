@@ -8,18 +8,18 @@
 }
 
 body {
-  font-family: var(--font-sans);
-  background: #0f172a;
-  color: #e2e8f0;
+  font-family: var(--font-mono); /* Force mono globally except for headings */
+  background: #030704; /* Tactical dark */
+  color: #00ff41; /* Default to tactical green */
   margin: 0;
   min-height: 100vh;
 }
 
 /* Custom scrollbar */
-::-webkit-scrollbar { width: 6px; }
-::-webkit-scrollbar-track { background: #1e293b; }
-::-webkit-scrollbar-thumb { background: #475569; border-radius: 3px; }
-::-webkit-scrollbar-thumb:hover { background: #64748b; }
+::-webkit-scrollbar { width: 6px; height: 6px; }
+::-webkit-scrollbar-track { background: #030704; border-left: 1px solid #102a1c; }
+::-webkit-scrollbar-thumb { background: #102a1c; border-radius: 0; }
+::-webkit-scrollbar-thumb:hover { background: #008f11; }
 
 /* Animations */
 @keyframes pulse-dot {
@@ -38,4 +38,30 @@ body {
 
 .pulse-dot {
   animation: pulse-dot 2s ease-in-out infinite;
+}
+
+/* CRT and Scanner Effects */
+.crt-overlay {
+  position: relative;
+}
+.crt-overlay::after {
+  content: " ";
+  display: block;
+  position: absolute;
+  top: 0;
+  left: 0;
+  bottom: 0;
+  right: 0;
+  background: linear-gradient(rgba(18, 16, 16, 0) 50%, rgba(0, 0, 0, 0.25) 50%), linear-gradient(90deg, rgba(255, 0, 0, 0.06), rgba(0, 255, 0, 0.02), rgba(0, 0, 255, 0.06));
+  z-index: 20;
+  background-size: 100% 2px, 3px 100%;
+  pointer-events: none;
+}
+
+.terminal-text {
+  text-shadow: 0 0 5px rgba(0, 255, 65, 0.5);
+}
+
+.clip-slanted {
+  clip-path: polygon(10px 0, 100% 0, 100% calc(100% - 10px), calc(100% - 10px) 100%, 0 100%, 0 10px);
 }

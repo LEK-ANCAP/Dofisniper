@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Settings, Bell, Send, UserCheck, Shield, Tag, Plus, Trash2 } from 'lucide-react';
+import { Settings, Bell, Send, UserCheck, Shield, Tag, Plus, Trash2, Activity } from 'lucide-react';
 import { fetchConfig, updateConfig, testNotification, fetchSettings, updateSettings, forceLogout, fetchCategories, createCategory, deleteCategory, checkSessionStatus, forceLogin } from '../utils/api';
 import { toast } from 'react-hot-toast';
 
@@ -10,6 +10,7 @@ export default function ConfigPanel() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [keepAliveEnabled, setKeepAliveEnabled] = useState(false);
+  const [scanInterval, setScanInterval] = useState(10);
   const [sessionStatus, setSessionStatus] = useState({ active: false, checking: true });
 
   // Categorías
@@ -33,6 +34,7 @@ export default function ConfigPanel() {
       setEmail(settingsData.dofimall_email || '');
       setPassword(settingsData.dofimall_password || '');
       setKeepAliveEnabled(settingsData.keep_alive_enabled || false);
+      setScanInterval(settingsData.scan_interval_seconds || 10);
       setCategories(cats);
       
       setSessionStatus({ active: sessStat.active, checking: false });
@@ -76,6 +78,21 @@ export default function ConfigPanel() {
       toast.success('Notificación de prueba enviada', { id: 'test' });
     } catch (e) {
       toast.error('Error enviando prueba: ' + e.message, { id: 'test' });
+    }
+  };
+
+  const handleScanIntervalChange = async (e) => {
+    let val = parseInt(e.target.value);
+    if (isNaN(val) || val < 2) val = 2; // Min 2 secs
+    setScanInterval(val);
+  };
+  
+  const saveScanInterval = async () => {
+    try {
+      await updateSettings({ scan_interval_seconds: scanInterval });
+      toast.success('Velocidad de Escaneo Guardada', { icon: '⏱️' });
+    } catch(e) {
+      toast.error('Error al guardar velocidad');
     }
   };
 
@@ -297,6 +314,43 @@ export default function ConfigPanel() {
                >
                   ¿Sesión expirada? Escanear y forzar inyección ahora
                </button>
+           </div>
+        </div>
+
+        {/* Frecuencia de Escaneo */}
+        <div className="flex flex-col p-4 bg-surface-900 rounded-lg border border-surface-700">
+           <div className="flex flex-col mb-2">
+              <div className="flex items-start gap-4 mb-4">
+                <div className="p-3 rounded-full bg-cyan-500/20 text-cyan-400">
+                  <Activity size={24} />
+                </div>
+                <div>
+                  <h3 className="font-medium text-white text-md flex items-center gap-2">
+                     Frecuencia de Monitorización Concurrente
+                  </h3>
+                  <p className="text-surface-400 text-sm mt-1 max-w-md">
+                    Controla cuántos segundos espera cada hilo independiente entre peticiones a DofiMall. Tiempos muy bajos pueden ser bloqueados por rate-limit.
+                  </p>
+                </div>
+              </div>
+           </div>
+           
+           <div className="flex items-center gap-4">
+              <input 
+                type="range" 
+                min="3" 
+                max="60" 
+                value={scanInterval} 
+                onChange={handleScanIntervalChange} 
+                className="w-full h-2 bg-surface-700 rounded-lg appearance-none cursor-pointer accent-cyan-500"
+              />
+              <span className="text-cyan-400 font-mono font-bold w-16 text-right whitespace-nowrap">{scanInterval} seg</span>
+              <button
+                onClick={saveScanInterval}
+                className="ml-2 px-4 py-2 bg-cyan-600 hover:bg-cyan-500 text-white font-semibold rounded-lg text-sm transition-colors shadow-sm whitespace-nowrap"
+              >
+                 Aplicar
+              </button>
            </div>
         </div>
 

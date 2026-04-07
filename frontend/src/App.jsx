@@ -4,17 +4,17 @@ import StatsBar from './components/StatsBar';
 import ProductList from './components/ProductList';
 import AddProductForm from './components/AddProductForm';
 import LogsPanel from './components/LogsPanel';
-import CountdownTimer from './components/CountdownTimer';
 import ConfigPanel from './components/ConfigPanel';
 import IntelligenceDashboard from './components/IntelligenceDashboard';
 import {
   fetchDashboard, fetchProducts, fetchLogs,
   addProduct, addProductsBulk, deleteProduct,
-  toggleProduct, triggerCheckNow, manualCheckout, clearLogs,
+  toggleProduct, manualCheckout, clearLogs,
   fetchMe, fetchCategories, checkSessionFastStatus, forceLogin
 } from './utils/api';
 import { Crosshair, RefreshCw, Activity, Settings, BarChart2, LogOut, ShieldAlert, Ghost } from 'lucide-react';
 import LoginPage from './pages/LoginPage';
+import { playTacticalClick } from './utils/tacticalAudio';
 
 export default function App() {
   const [stats, setStats] = useState(null);
@@ -168,16 +168,7 @@ export default function App() {
   };
 
   const handleCheckNow = async () => {
-    setChecking(true);
-    try {
-      await triggerCheckNow();
-      toast.success('Comprobación manual iniciada');
-      setTimeout(loadData, 3000);
-    } catch (e) {
-      toast.error(e.message);
-    } finally {
-      setTimeout(() => setChecking(false), 5000);
-    }
+    // Reemplazado por iteradores concurrentes en backend
   };
 
   if (!isAuthenticated) {
@@ -203,68 +194,51 @@ export default function App() {
         }}
       />
 
-      {/* Header */}
-      <header className="border-b border-surface-700/50 bg-surface-900/80 backdrop-blur-sm sticky top-0 z-50">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 py-4 flex items-center justify-between">
+      {/* Header HUD */}
+      <header className="border-b border-tactical-green/30 bg-black/80 backdrop-blur-sm sticky top-0 z-50">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 py-3 flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-brand-500 to-brand-700 flex items-center justify-center">
-              <Crosshair size={22} className="text-white" />
+            <div className="w-10 h-10 bg-tactical-green/10 border border-tactical-green flex items-center justify-center relative group overflow-hidden">
+              <div className="absolute inset-0 bg-[linear-gradient(rgba(0,255,65,0.1)_1px,transparent_1px),linear-gradient(90deg,rgba(0,255,65,0.1)_1px,transparent_1px)] bg-[size:5px_5px]"></div>
+              <Crosshair size={22} className="text-tactical-green relative z-10 animate-[radar_4s_linear_infinite]" />
             </div>
             <div>
-              <h1 className="text-lg font-bold tracking-tight text-white">
-                DofiMall Sniper
+              <h1 className="text-lg font-mono font-bold tracking-widest text-tactical-green" style={{ textShadow: '0 0 10px rgba(0,255,65,0.4)' }}>
+                DOFIMALL_SNIPER
               </h1>
-              <p className="text-xs text-surface-200/50 uppercase tracking-widest font-mono">Control Táctico de Suministros</p>
+              <p className="text-[9px] text-tactical-green/60 uppercase tracking-[0.3em] font-mono">Control Táctico Central</p>
             </div>
           </div>
 
           <div className="flex items-center gap-4">
             
             {/* Session Indicator Badge */}
-            <div className="flex items-center gap-2 px-3 py-1.5 rounded-lg border border-surface-700 bg-surface-800" title={sessionActive ? "Bot Operando" : "Re-conectando por seguridad..."}>
+            <div className="flex items-center gap-2 px-3 py-1.5 border border-tactical-border bg-tactical-panel font-mono text-[10px] tracking-widest uppercase">
               {sessionActive ? (
                 <>
-                  <Ghost size={14} className="text-brand-500 hover:animate-pulse" />
-                  <span className="hidden sm:inline text-xs font-semibold text-brand-400 uppercase tracking-widest">Infiltrado</span>
+                  <Activity size={12} className="text-tactical-green animate-flicker" />
+                  <span className="hidden sm:inline text-tactical-green font-bold">[ UPLINK_SECURE ]</span>
                 </>
               ) : (
                 <>
-                  <ShieldAlert size={14} className="text-red-500" />
-                  <span className="hidden sm:inline text-xs font-semibold text-red-500 uppercase tracking-widest">
-                     {isInjecting ? 'Inyectando...' : `Exp ${autoLoginTimer}s`}
+                  <ShieldAlert size={12} className="text-tactical-red" />
+                  <span className="hidden sm:inline font-bold text-tactical-red">
+                     {isInjecting ? '[ INJECTING... ]' : `[ SIGNAL_LOST: ${autoLoginTimer}s ]`}
                   </span>
                 </>
               )}
             </div>
-            
-            <div className="h-6 w-px bg-white/10 hidden sm:block" />
-
-            <CountdownTimer
-              nextCheck={stats?.next_check}
-              interval={stats?.check_interval}
-              isRunning={stats?.scheduler_running}
-            />
+            <div className="h-6 w-px bg-tactical-green/20 hidden sm:block" />
 
             <button
-              onClick={handleCheckNow}
-              disabled={checking}
-              className="flex items-center gap-2 px-4 py-2 rounded-lg bg-brand-600 hover:bg-brand-500
-                         text-white text-sm font-medium transition-all disabled:opacity-50"
+               onMouseEnter={() => playTacticalClick(0.01)}
+               onClick={() => { playTacticalClick(); handleLogout(); }}
+               className="flex items-center gap-2 px-3 py-1.5 border border-transparent hover:border-tactical-red/50 bg-black hover:bg-tactical-red/10
+                          text-surface-500 hover:text-tactical-red text-[10px] font-mono tracking-widest uppercase transition-all"
+               title="Cerrar Misión"
             >
-              <RefreshCw size={14} className={checking ? 'animate-spin' : ''} />
-              <span className="hidden sm:inline">{checking ? 'Sincronizando...' : 'Check de Stock'}</span>
-            </button>
-
-            <div className="h-6 w-px bg-white/10" />
-
-            <button
-              onClick={handleLogout}
-              className="flex items-center gap-2 px-3 py-2 rounded-lg bg-white/5 hover:bg-red-500/20
-                         text-surface-200 hover:text-red-400 text-xs font-medium transition-all border border-transparent hover:border-red-500/30"
-              title="Cerrar Misión"
-            >
-              <LogOut size={14} />
-              <span className="hidden sm:inline">Finalizar Misión</span>
+              <LogOut size={12} />
+              <span className="hidden sm:inline">ABORTAR_MISIÓN</span>
             </button>
           </div>
         </div>
@@ -278,34 +252,36 @@ export default function App() {
         )}
 
         <div className="flex flex-col sm:flex-row gap-4 justify-between items-start sm:items-center">
-          <div className="flex gap-1 overflow-x-auto bg-surface-800/50 rounded-lg p-1 w-full sm:w-fit">
+          <div className="flex gap-1 overflow-x-auto bg-black border border-tactical-green/30 p-1 w-full sm:w-fit filter drop-shadow-[0_0_10px_rgba(0,255,65,0.05)]">
             {[
-              { key: 'products', label: 'Productos', icon: Crosshair },
-            { key: 'analytics', label: 'Analíticas', icon: BarChart2 },
-            { key: 'logs', label: 'Actividad', icon: Activity },
-            { key: 'config', label: 'Configuración', icon: Settings },
+              { key: 'products', label: 'F1: BLANCOS', icon: Crosshair },
+            { key: 'analytics', label: 'F2: INTEL_SYS', icon: BarChart2 },
+            { key: 'logs', label: 'F3: TERMINAL', icon: Terminal },
+            { key: 'config', label: 'F4: SYSTEM_OP', icon: Settings },
           ].map(({ key, label, icon: Icon }) => (
             <button
               key={key}
-              onClick={() => setTab(key)}
-              className={`flex items-center gap-2 px-4 py-2 rounded-md text-sm font-medium transition-all
+              onMouseEnter={() => playTacticalClick(0.01)}
+              onClick={() => { playTacticalClick(); setTab(key); }}
+              className={`flex items-center gap-2 px-4 py-2 text-[10px] uppercase font-mono tracking-widest font-bold transition-all border
                 ${tab === key
-                  ? 'bg-surface-700 text-white shadow-sm ring-1 ring-white/5'
-                  : 'text-surface-200/60 hover:text-white'
+                  ? 'bg-tactical-green text-black border-tactical-green shadow-inner shadow-black/50'
+                  : 'bg-black text-tactical-green/50 border-transparent hover:text-tactical-green hover:bg-tactical-green/10 hover:border-tactical-green/20'
                 }`}
             >
-              <Icon size={14} />
+              <Icon size={12} />
               {label}
             </button>
           ))}
           </div>
           
           <button 
-             onClick={() => setShowAddForm(!showAddForm)}
-             className={`flex items-center gap-2 px-4 py-2 rounded-lg font-medium text-sm transition-all whitespace-nowrap ${showAddForm ? 'bg-surface-700 text-white' : 'bg-brand-500/10 text-brand-400 hover:bg-brand-500/20 shadow-sm border border-brand-500/20'}`}
+             onMouseEnter={() => playTacticalClick(0.01)}
+             onClick={() => { playTacticalClick(); setShowAddForm(!showAddForm); }}
+             className={`flex items-center gap-2 px-4 py-2 font-mono font-bold text-[10px] uppercase tracking-widest transition-all border ${showAddForm ? 'bg-tactical-green text-black border-tactical-green' : 'bg-black text-blue-400 border-blue-500/30 hover:bg-blue-500/10 shadow-[0_0_10px_rgba(59,130,246,0.1)]'}`}
           >
-             <Crosshair size={14} />
-             {showAddForm ? 'Ocultar Formulario' : 'Añadir Producto(s)'}
+             <Crosshair size={12} />
+             {showAddForm ? 'CANCEL_INPUT' : 'ASIGNAR_NUEVO_BLANCO'}
           </button>
         </div>
 
