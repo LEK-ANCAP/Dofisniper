@@ -126,3 +126,53 @@ export function playMissionFail() {
     osc.stop(ctx.currentTime + 0.4);
   } catch(e) {}
 }
+
+// 5. Transmisión Morse (Mientras ocurre una ejecución prolongada)
+let morseActive = 0;
+let morseTimeout = null;
+const morsePattern = [1, 1, 3, 1, 3, 1, 1, 1, 3, 3, 1, 1]; // dots and dashes (durations)
+let morseIndex = 0;
+
+export function startMorseTransmission() {
+  if (morseActive === 0) {
+    const ctx = getContext();
+    function playNextSignal() {
+      if (morseActive === 0) return;
+      if (ctx.state === 'suspended') ctx.resume();
+      
+      const durationMultiplier = 60; // velocidad del morse en ms
+      const currentSignal = morsePattern[morseIndex % morsePattern.length];
+      const duration = (currentSignal * durationMultiplier) / 1000.0;
+      
+      try {
+          const osc = ctx.createOscillator();
+          const gain = ctx.createGain();
+          osc.type = 'sine';
+          osc.frequency.setValueAtTime(750, ctx.currentTime); // 750Hz tono morse suave
+          
+          gain.gain.setValueAtTime(0.015, ctx.currentTime); // Volumen muy bajo para no saturar
+          // Envolvente cuadrada para que suene como un switch
+          gain.gain.setValueAtTime(0, ctx.currentTime + duration - 0.01);
+          
+          osc.connect(gain);
+          gain.connect(ctx.destination);
+          osc.start();
+          osc.stop(ctx.currentTime + duration);
+      } catch(e) {}
+      
+      morseIndex++;
+      const pauseDuration = durationMultiplier * 1.5; // Espacio de silencio
+      morseTimeout = setTimeout(playNextSignal, (duration * 1000) + pauseDuration);
+    }
+    playNextSignal();
+  }
+  morseActive++;
+}
+
+export function stopMorseTransmission() {
+  if (morseActive > 0) morseActive--;
+  if (morseActive === 0 && morseTimeout) {
+    clearTimeout(morseTimeout);
+    morseTimeout = null;
+  }
+}

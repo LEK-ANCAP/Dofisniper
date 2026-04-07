@@ -1,11 +1,10 @@
-import { useState, useEffect, useRef } from 'react';
 import {
   Trash2, Pause, Play, ExternalLink,
   ShoppingCart, AlertTriangle, Package, Edit3, BarChart, X, target, Zap, Target, Eye, Database, Crosshair, Terminal, Camera, Activity, Download, Upload, MapPin
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { updateProduct, manualCheckout, fetchLogs, fetchLiveView, fetchProductHistory, fetchCategories } from '../utils/api';
-import { playTacticalClick, playEngageAlarm, playMissionSuccess, playMissionFail } from '../utils/tacticalAudio';
+import { playTacticalClick, playEngageAlarm, playMissionSuccess, playMissionFail, startMorseTransmission, stopMorseTransmission } from '../utils/tacticalAudio';
 
 const STATUS_CONFIG = {
   monitoring: { label: 'RECON', border: 'border-brand-400/50', text: 'text-brand-400', icon: Eye },
@@ -87,7 +86,7 @@ function ProductItem({ product, i, onDelete, onToggle, onCheckout, onOpenEdit })
   const handleSaveConfig = async () => {
     try {
        await updateProduct(product.id, { target_quantity: Number(targetQty), min_stock_to_trigger: Number(minTrigger) });
-       toast.success('Parámetros actualizados', { style: { background: '#1e293b', color: '#00ff41', border: '1px solid #102a1c' } });
+       toast.success('Parámetros actualizados', { style: { background: '#1e293b', color: '#59b0ff', border: '1px solid #1e293b' } });
     } catch(e) {
        toast.error('Error táctico');
     }
@@ -96,6 +95,7 @@ function ProductItem({ product, i, onDelete, onToggle, onCheckout, onOpenEdit })
   const executeSnipe = async () => {
       setIsExecuting(true);
       playEngageAlarm();
+      startMorseTransmission();
       setLogOutput(">> INICIALIZANDO SECUENCIA OVERRIDE...\n>> Inyectando hilos ofensivos (Playwright)...\n>> Buscando brecha en sistema objetivo...");
       try {
           const res = await manualCheckout(product.id);
@@ -111,6 +111,7 @@ function ProductItem({ product, i, onDelete, onToggle, onCheckout, onOpenEdit })
           setLogOutput(prev => prev + `\n\n>> [CRITICAL FAILURE]\n>> ${e.message}`);
       } finally {
           setIsExecuting(false);
+          stopMorseTransmission();
       }
   };
 
@@ -341,7 +342,7 @@ function EditProductModal({ product, categories, onClose, onSaved }) {
         if (categoryId) data.category_id = parseInt(categoryId);
         else data.category_id = null;
         await updateProduct(product.id, data);
-        toast.success('METADATOS ACTUALIZADOS', { style: {background:'#1e293b',color:'#00ff41',border:'1px solid #102a1c'}});
+        toast.success('METADATOS ACTUALIZADOS', { style: {background:'#1e293b',color:'#59b0ff',border:'1px solid #1e293b'}});
         onSaved();
       } catch(e) {
         toast.error('FALLO EN ACTUALIZAR METADATOS');
@@ -351,8 +352,8 @@ function EditProductModal({ product, categories, onClose, onSaved }) {
     };
   
     return (
-      <div className="fixed inset-0 z-[110] flex items-center justify-center p-4 bg-tactical-dark/90 backdrop-blur-sm">
-        <div className="bg-surface-900 border border-brand-400/50 w-full max-w-md clip-slanted shadow-[0_0_30px_rgba(0,255,65,0.1)]">
+      <div className="fixed inset-0 z-[110] flex items-center justify-center p-4 bg-surface-900/90 backdrop-blur-sm">
+        <div className="bg-surface-900 border border-brand-400/50 w-full max-w-md clip-slanted shadow-[0_0_30px_rgba(59,130,246,0.1)]">
           <div className="px-6 py-4 flex items-center justify-between border-b border-brand-400/30 bg-brand-400/5">
             <div className="flex items-center gap-3">
                <Terminal size={16} className="text-brand-400" />
@@ -363,15 +364,15 @@ function EditProductModal({ product, categories, onClose, onSaved }) {
           <div className="p-6 space-y-4 ">
             <div>
               <label className="text-[10px] text-brand-400/60 tracking-wider mb-1 block">DESIGNACIÓN (NOMBRE)</label>
-              <input type="text" value={name} onChange={e=>setName(e.target.value)} className="w-full bg-tactical-dark border border-surface-700 p-2 text-xs text-white focus:border-brand-400 outline-none transition-colors" />
+              <input type="text" value={name} onChange={e=>setName(e.target.value)} className="w-full bg-surface-900 border border-surface-700 p-2 text-xs text-white focus:border-brand-400 outline-none transition-colors" />
             </div>
             <div>
               <label className="text-[10px] text-brand-400/60 tracking-wider mb-1 block">COORDENADAS (URL)</label>
-              <input type="text" value={url} onChange={e=>setUrl(e.target.value)} className="w-full bg-tactical-dark border border-surface-700 p-2 text-xs text-white focus:border-brand-400 outline-none transition-colors" />
+              <input type="text" value={url} onChange={e=>setUrl(e.target.value)} className="w-full bg-surface-900 border border-surface-700 p-2 text-xs text-white focus:border-brand-400 outline-none transition-colors" />
             </div>
             <div>
               <label className="text-[10px] text-brand-400/60 tracking-wider mb-1 block">TIPO BLANCO (CATEGORÍA)</label>
-              <select value={categoryId} onChange={e=>setCategoryId(e.target.value)} className="w-full bg-tactical-dark border border-surface-700 p-2 text-xs text-white focus:border-brand-400 outline-none">
+              <select value={categoryId} onChange={e=>setCategoryId(e.target.value)} className="w-full bg-surface-900 border border-surface-700 p-2 text-xs text-white focus:border-brand-400 outline-none">
                  <option value="">INDEPENDIENTE / NO_CLASS</option>
                  {categories.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
               </select>
