@@ -329,7 +329,7 @@ function ProductItem({ product, i, onDelete, onToggle, onCheckout, onOpenEdit })
 
                         {liveFrame ? (
                            <>
-                             <img src={`data:image/jpeg;base64,${liveFrame}`} className="absolute top-0 right-0 w-full h-full object-contain filter contrast-125 sepia-[0.3] hue-rotate-[-50deg] saturate-200 opacity-70 z-0" alt="Scanner" />
+                             <img src={`data:image/jpeg;base64,${liveFrame}`} className="absolute top-0 right-0 w-full h-full object-contain filter opacity-90 z-0 glitch-image pointer-events-none" alt="Scanner" />
                              <div className="absolute inset-0 bg-brand-500/10 z-10 animate-scanline border-t border-brand-400/50 pointer-events-none"></div>
                            </>
                         ) : (
