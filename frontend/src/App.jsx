@@ -11,9 +11,9 @@ import {
   fetchDashboard, fetchProducts, fetchLogs,
   addProduct, addProductsBulk, deleteProduct,
   toggleProduct, triggerCheckNow, manualCheckout, clearLogs,
-  fetchMe, fetchCategories, checkSessionFastStatus
+  fetchMe, fetchCategories, checkSessionFastStatus, forceLogin
 } from './utils/api';
-import { Crosshair, RefreshCw, Activity, Settings, BarChart2, LogOut, ShieldAlert, ShieldCheck } from 'lucide-react';
+import { Crosshair, RefreshCw, Activity, Settings, BarChart2, LogOut, ShieldAlert, Ghost } from 'lucide-react';
 import LoginPage from './pages/LoginPage';
 
 export default function App() {
@@ -24,6 +24,8 @@ export default function App() {
   const [loading, setLoading] = useState(true);
   const [checking, setChecking] = useState(false);
   const [sessionActive, setSessionActive] = useState(false);
+  const [autoLoginTimer, setAutoLoginTimer] = useState(10);
+  const [isInjecting, setIsInjecting] = useState(false);
   const [showAddForm, setShowAddForm] = useState(false);
   const [tab, setTab] = useState('products');
   const [isAuthenticated, setIsAuthenticated] = useState(!!localStorage.getItem('sniper_token'));
@@ -67,6 +69,41 @@ export default function App() {
       return () => clearInterval(interval);
     }
   }, [loadData, isAuthenticated]);
+
+  const handleAutoLogin = useCallback(async () => {
+     setIsInjecting(true);
+     try {
+         const res = await forceLogin();
+         if (res && res.success) {
+            toast.success("Infiltración Automática exitosa", { icon: '🕵️' });
+            setSessionActive(true);
+         } else {
+            setAutoLoginTimer(10);
+         }
+     } catch (e) {
+         setAutoLoginTimer(10);
+     } finally {
+         setIsInjecting(false);
+     }
+  }, []);
+
+  useEffect(() => {
+      if (isAuthenticated && !sessionActive && !checking && !isInjecting) {
+          const timer = setInterval(() => {
+              setAutoLoginTimer(prev => {
+                  if (prev <= 1) {
+                      handleAutoLogin();
+                      return 0;
+                  }
+                  return prev - 1;
+              });
+          }, 1000);
+          return () => clearInterval(timer);
+      }
+      if (sessionActive) {
+          setAutoLoginTimer(10);
+      }
+  }, [isAuthenticated, sessionActive, isInjecting, handleAutoLogin, checking]);
 
   const handleAddProduct = async (url, name, category_id) => {
     try {
@@ -184,16 +221,18 @@ export default function App() {
           <div className="flex items-center gap-4">
             
             {/* Session Indicator Badge */}
-            <div className="flex items-center gap-2 px-3 py-1.5 rounded-lg border border-surface-700 bg-surface-800" title={sessionActive ? "Sesión de bot sincronizada y conectada a DofiMall." : "Sesión de bot desconectada o expirada. (Ve a Configuración -> Forzar Inyección)"}>
+            <div className="flex items-center gap-2 px-3 py-1.5 rounded-lg border border-surface-700 bg-surface-800" title={sessionActive ? "Bot Operando" : "Re-conectando por seguridad..."}>
               {sessionActive ? (
                 <>
-                  <ShieldCheck size={14} className="text-emerald-500" />
-                  <span className="hidden sm:inline text-xs font-semibold text-emerald-400 uppercase tracking-widest">Logueado</span>
+                  <Ghost size={14} className="text-brand-500 hover:animate-pulse" />
+                  <span className="hidden sm:inline text-xs font-semibold text-brand-400 uppercase tracking-widest">Infiltrado</span>
                 </>
               ) : (
                 <>
                   <ShieldAlert size={14} className="text-red-500" />
-                  <span className="hidden sm:inline text-xs font-semibold text-red-500 uppercase tracking-widest">Expirada</span>
+                  <span className="hidden sm:inline text-xs font-semibold text-red-500 uppercase tracking-widest">
+                     {isInjecting ? 'Inyectando...' : `Exp ${autoLoginTimer}s`}
+                  </span>
                 </>
               )}
             </div>
