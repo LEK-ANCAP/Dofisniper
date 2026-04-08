@@ -141,12 +141,12 @@ async def persistent_checkout_loop(product_id: int):
                         break
                 else:
                     await _log_action(db, product.id, product.name, "auto_purchase_failed", LogLevel.ERROR, "Reintentando ataque...")
-                    logger.warning(f"⚠️ [HILO CHECKOUT {product_id}] Falló intento. Reanudando loop casi inmediatamente...")
-                    await asyncio.sleep(2) # Breve pausa para no spamear totalmente el thread
+                    logger.warning(f"⚠️ [HILO CHECKOUT {product_id}] Falló intento. Reanudando loop en 1s...")
+                    await asyncio.sleep(1) # Mínima pausa antes de reintentar
                     
         except Exception as e:
             logger.error(f"💥 [HILO CHECKOUT {product_id}] Excepción en loop agresivo: {e}")
-            await asyncio.sleep(2)
+            await asyncio.sleep(1)
             
     # Cleanup task registry
     if product_id in active_checkout_tasks:
@@ -285,7 +285,7 @@ async def job_synchronizer():
     async with async_session() as db:
         settings_db = await db.execute(select(AppSettings).limit(1))
         sys_settings = settings_db.scalar_one_or_none()
-        interval_secs = sys_settings.scan_interval_seconds if sys_settings and sys_settings.scan_interval_seconds else 10
+        interval_secs = sys_settings.scan_interval_seconds if sys_settings and sys_settings.scan_interval_seconds else 3
 
         # Obtener todos los productos
         result = await db.execute(select(Product))

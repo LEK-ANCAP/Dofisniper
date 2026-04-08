@@ -18,7 +18,7 @@ async def init_db():
         await conn.run_sync(Base.metadata.create_all)
         # Migración automática si la columna nueva no existe en la BD de Producción
         try:
-            await conn.execute(text("ALTER TABLE app_settings ADD COLUMN scan_interval_seconds INTEGER DEFAULT 10"))
+            await conn.execute(text("ALTER TABLE app_settings ADD COLUMN scan_interval_seconds INTEGER DEFAULT 3"))
         except Exception:
             pass
         
