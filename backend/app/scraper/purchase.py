@@ -331,19 +331,12 @@ async def add_to_cart_and_checkout(
         if tracker:
             tracker.advance_to("checkout", "Navegando al carrito...")
 
-        # Ir al carrito
+        # Ir al carrito directo por URL (Optimización para evitar delays de la UI)
+        await record_step("Forzando salto rápido a /cart por URL...")
         try:
-            await record_step("Buscando icono del carrito...")
-            cart_link = await page.wait_for_selector(CHECKOUT_SELECTORS["go_to_cart"], timeout=5000)
-            await cart_link.click()
-            await page.wait_for_timeout(2000)
+            await page.goto(f"{settings.dofimall_base_url}/cart", wait_until="domcontentloaded", timeout=15000)
         except PlaywrightTimeout:
-            await record_step("Forzando navegación directa a /cart")
-            try:
-                await page.goto(f"{settings.dofimall_base_url}/cart", wait_until="domcontentloaded", timeout=20000)
-            except PlaywrightTimeout:
-                await record_step("Timeout en carga del carrito — forzando continuación")
-            await page.wait_for_timeout(2000)
+            await record_step("Timeout en carga del carrito — continuando ciegamente...")
             
         await record_step(f"En carrito: {page.url}")
 
