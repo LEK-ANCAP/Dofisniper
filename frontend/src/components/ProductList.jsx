@@ -464,6 +464,31 @@ function ProductItem({ product, i, onDelete, onToggle, onCheckout, onOpenEdit })
                                   {product.auto_buy ? 'El sistema comprará automáticamente al detectar stock' : 'Click en el dial para armar el auto-engage'}
                                </div>
                             </div>
+                            
+                            {/* POST-PURCHASE LOOP TOGGLE */}
+                            <div className="flex items-center ml-auto">
+                                <label className={`flex flex-col items-center justify-center p-2 rounded cursor-pointer transition-colors ${postPurchaseAction === 'loop' ? 'bg-cyan-500/10 text-cyan-500' : 'text-surface-400 hover:bg-surface-700/50'}`}>
+                                    <span className="text-[9px] font-mono tracking-[0.1em] font-bold mb-2 text-center uppercase leading-tight">POST-PURCHASE</span>
+                                    <input 
+                                       type="checkbox" 
+                                       className="hidden" 
+                                       checked={postPurchaseAction === 'loop'} 
+                                       onChange={async (e) => {
+                                          const val = e.target.checked ? 'loop' : 'pause';
+                                          setPostPurchaseAction(val);
+                                          try {
+                                             await updateProduct(product.id, { post_purchase_action: val });
+                                             const { toast } = await import('react-hot-toast');
+                                             toast.success(`POST-PURCHASE: ${val.toUpperCase()}`, { style: { background: '#1e293b', color: val==='loop'?'#06b6d4':'#94a3b8', border: val==='loop'?'1px solid #06b6d4':'1px solid #334155' }});
+                                          } catch(err) {}
+                                       }}
+                                    />
+                                    <div className={`w-10 h-5 border rounded-full flex items-center px-0.5 transition-colors ${postPurchaseAction === 'loop' ? 'border-cyan-500 bg-cyan-500/20 justify-end' : 'border-surface-600 bg-surface-800 justify-start'}`}>
+                                        <div className={`w-4 h-4 rounded-full shadow-sm ${postPurchaseAction === 'loop' ? 'bg-cyan-500 shadow-[0_0_8px_rgba(6,182,212,0.8)]' : 'bg-surface-500'}`} />
+                                    </div>
+                                    <span className="text-[8px] font-mono mt-1 opacity-70">{postPurchaseAction === 'loop' ? 'LOOP (RECON)' : 'PAUSAR'}</span>
+                                </label>
+                            </div>
                          </div>
                          <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-4 gap-3">
                             <div>
@@ -906,3 +931,4 @@ export default function ProductList({ products, loading, onDelete, onToggle, onC
     </div>
   );
 }
+
