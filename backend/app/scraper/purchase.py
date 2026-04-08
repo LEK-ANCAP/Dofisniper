@@ -342,7 +342,7 @@ async def add_to_cart_and_checkout(
 
         # Verificar selección — usar texto del footer como fuente de verdad
         await record_step("Verificando items seleccionados...")
-        await page.wait_for_timeout(1000)  # Esperar renderizado del carrito
+        await page.wait_for_timeout(100)  # Esperar renderizado rapido del carrito
         
         async def ensure_products_selected():
             """Verifica y fuerza la selección de productos en el carrito. Retorna True si hay productos seleccionados."""
@@ -390,7 +390,7 @@ async def add_to_cart_and_checkout(
                             }
                         }
                     }""")
-                    await page.wait_for_timeout(800)
+                    await page.wait_for_timeout(200)
                     await record_step("Click en 'Seleccionar Todo' ejecutado ✓")
                     return False
                 elif selected_count > 0:
@@ -451,7 +451,7 @@ async def add_to_cart_and_checkout(
         if not pagar_success:
             await record_step("⚠ No se pudo validar la redirección de Pagar automáticamente — forzando continuación")
         
-        await page.wait_for_timeout(1000)
+        await page.wait_for_timeout(100)
         if tracker:
             tracker.mark_step_done("checkout")
 
@@ -468,7 +468,7 @@ async def add_to_cart_and_checkout(
             check_locator = page.locator("div.order-agreement__checkbox, span.el-checkbox__inner, label.el-checkbox").last
             if await check_locator.count() > 0:
                 await check_locator.evaluate("element => { \n                    // Intentar clickar el div o el span interno \n                    const span = element.querySelector('.el-checkbox__inner'); \n                    if (span) { span.click(); } else { element.click(); } \n                }")
-                await page.wait_for_timeout(300)
+                await page.wait_for_timeout(100)
                 await record_step("Checkbox validado ✓")
             else:
                 await record_step("No se detectó el checkbox previo")
@@ -492,8 +492,8 @@ async def add_to_cart_and_checkout(
         # 3. Fallback: Click en "Estoy de acuerdo" emergente SI el checkbox falló
         try:
             acuerdo_btn = page.locator("div.agreement-btn:not(.agreement-btn--colse)").last
-            # Espera super rápida (2s max) porque normalmente no debería salir ya
-            await acuerdo_btn.wait_for(state="visible", timeout=2000)
+            # Espera instantánea (100ms max) para no penalizar el tiempo. Si no está en el DOM, ignora.
+            await acuerdo_btn.wait_for(state="visible", timeout=100)
             await acuerdo_btn.evaluate("element => element.click()")
             await record_step("Popup Aviso legal forzado aceptado.")
         except PlaywrightTimeout:
