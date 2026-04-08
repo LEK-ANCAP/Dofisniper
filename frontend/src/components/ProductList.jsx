@@ -188,8 +188,8 @@ function ProductItem({ product, i, onDelete, onToggle, onCheckout, onOpenEdit })
               
               // Handle post-purchase action
               if (product.post_purchase_action === 'pause') {
+                  // SOLO desactivar el AutoBuy (armado), NUNCA detener el RECON
                   await updateProduct(product.id, { auto_buy: false });
-                  onToggle(product.id, { preventBackend: true });
               }
 
               if (result.checkout_url) {
