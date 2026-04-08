@@ -342,137 +342,125 @@ async def add_to_cart_and_checkout(
 
         # Verificar selección — usar texto del footer como fuente de verdad
         await record_step("Verificando items seleccionados...")
-        await page.wait_for_timeout(1500)  # Esperar renderizado del carrito
+        await page.wait_for_timeout(1000)  # Esperar renderizado del carrito
         
         async def ensure_products_selected():
             """Verifica y fuerza la selección de productos en el carrito. Retorna True si hay productos seleccionados."""
             try:
-                # Leer el texto del footer del carrito para saber cuantos están seleccionados
+                # Buscar cualquier indicador de conteo en el panel inferior (PC y mobile)
                 footer_text = await page.evaluate("""() => {
-                    const el = document.querySelector('.cart-footer, .cart-bottom, .fixed-bottom, .cart-total');
-                    return el ? el.innerText : document.body.innerText.substring(document.body.innerText.indexOf('seleccionado') - 30, document.body.innerText.indexOf('seleccionado') + 50);
+                    const elCount = document.querySelector('.options_btn_left_check, .cart-footer__text, .cart-footer');
+                    if (elCount) return elCount.innerText;
+                    
+                    const everything = document.body.innerText;
+                    const match = everything.match(/Ha seleccionado.*productos?/i);
+                    return match ? match[0] : "";
                 }""")
                 
-                # Detectar "Ha seleccionado 0 productos" o similar
                 import re
-                match = re.search(r'seleccionado\s+(\d+)\s+producto', footer_text, re.IGNORECASE)
+                match = re.search(r'(?:seleccionado)\s*(\d+)', footer_text, re.IGNORECASE)
                 selected_count = int(match.group(1)) if match else -1
                 
                 if selected_count == 0:
-                    await record_step(f"0 productos seleccionados — forzando clicks vía JS...")
+                    await record_step(f"0 productos seleccionados — forzando selección general...")
                     
-                    # Forzar clicks agresivos vía JavaScript puro para evitar fallos de Playwright/Vue
+                    # Hacer click en 'Seleccionar todo' o forzar las imagenes-checkbox
                     await page.evaluate("""() => {
-                        const checkboxes = document.querySelectorAll('.cart-checkbox input, .el-checkbox input, .cart-checkbox, .el-checkbox');
-                        checkboxes.forEach(cb => cb.click());
+                        const selTodos = document.querySelectorAll('.options_sel, .cart-footer__all');
+                        if (selTodos.length > 0) {
+                            selTodos[0].click();
+                        } else {
+                            const checkboxes = document.querySelectorAll('.store_sel, .cart-checkbox__icon');
+                            checkboxes.forEach(cb => cb.click());
+                        }
                     }""")
                     await page.wait_for_timeout(800)
-                    
-                    await record_step("Clicks forzados en todos los checkboxes ✓")
-                    return False  # Estaban en 0, tuvimos que forzar
+                    await record_step("Clicks forzados en Selección General ✓")
+                    return False
                 elif selected_count > 0:
                     await record_step(f"{selected_count} producto(s) seleccionado(s) ✓")
                     return True
                 else:
-                    # No pudimos leer el count, asumimos OK pero avisamos
-                    await record_step("No se pudo leer conteo de selección — continuando")
+                    await record_step("No se detectó un conteo claro de selección — asumiendo OK")
                     return True
             except Exception as e:
-                await record_step(f"Error verificando selección: {str(e)[:60]}")
-                return True  # Continuar de todas formas
+                await record_step(f"Aviso selección: {str(e)[:40]}")
+                return True
         
-        # Comentado para MODO TURBO extremo: Asumimos por defecto que el producto viene seleccionado
-        # await ensure_products_selected()
+        await ensure_products_selected()
 
         # Ajustar cantidad (forzar mínimo 1)
         effective_qty = max(target_quantity, 1)
         if effective_qty > 1:
             try:
-                await record_step(f"Ajustando cantidad a {effective_qty} uds...")
-                cart_qty_input = page.locator("input[type='number']").first
-                if await cart_qty_input.count() > 0:
-                    await cart_qty_input.fill(str(effective_qty))
-                    await cart_qty_input.press("Enter")
-                    try:
-                        await page.wait_for_load_state("networkidle", timeout=6000)
-                    except PlaywrightTimeout:
-                        pass
-                    await record_step(f"Cantidad ajustada a {effective_qty} ✓")
+                await record_step(f"Ajustando cantidad a {effective_qty} uds mediante inyección rápida...")
+                # Inyección JS para cambiar el input directamente
+                eval_success = await page.evaluate(f"""(qty) => {{
+                    const inputs = document.querySelectorAll('.goods_edit_nem input, .cart-goods__sku__input input, input[type="number"]');
+                    if (inputs.length > 0) {{
+                        const input = inputs[0];
+                        input.value = qty;
+                        input.dispatchEvent(new Event('input', {{ bubbles: true }}));
+                        input.dispatchEvent(new Event('change', {{ bubbles: true }}));
+                        // Simular pulsar Enter
+                        const enterEvent = new KeyboardEvent('keydown', {{ key: 'Enter', code: 'Enter', keyCode: 13, bubbles: true }});
+                        input.dispatchEvent(enterEvent);
+                        return true;
+                    }}
+                    return false;
+                }}""", effective_qty)
+                
+                if eval_success:
+                    await record_step(f"Cantidad ajustada a {effective_qty} uds ✓")
+                    await page.wait_for_timeout(1000) # Dejar que Vue procese el input
+                else:
+                    await record_step(f"No se encontró input de cantidad, procediendo con stock unitario.")
             except Exception as e:
                 await record_step(f"Aviso ajustando cantidad: {str(e)[:50]}")
 
         # Click en PAGAR
-        await record_step("Buscando botón de PAGAR...")
+        await record_step("Disparando comando de PAGAR (Checkout)...")
         pagar_success = False
-        import time
-        for intento in range(1, 5):
-            # PRE-CHECK: Si ya salimos del carrito, no reintentar
-            if "cart" not in page.url:
-                await record_step("Navegación fuera del carrito detectada antes del click ✓")
-                pagar_success = True
-                break
+        
+        try:
+            # Eliminar posibles bloqueos visuales y ejecutar JS click agresivo
+            clicked = await page.evaluate("""() => {
+                const loadingMask = document.querySelector('.el-loading-mask');
+                if (loadingMask) loadingMask.style.display = 'none';
+                
+                const buttons = document.querySelectorAll('.go_buy, .go_submit, .cart-footer__operate');
+                for (let btn of buttons) {
+                    if (btn.innerText && btn.innerText.toUpperCase().includes('PAGAR')) {
+                        btn.click();
+                        return true;
+                    }
+                }
+                
+                // Fallback a cualquier boton de estas clases
+                if (buttons.length > 0) {
+                    buttons[buttons.length - 1].click();
+                    return true;
+                }
+                return false;
+            }""")
             
-            # RE-SELECCIÓN: Tras primer fallo, volver a verificar checkboxes
-            if intento > 1:
-                await record_step("🔄 Re-verificando selección de productos antes de reintentar...")
-                await ensure_products_selected()
-                await page.wait_for_timeout(500)
+            if clicked:
+                await record_step("✔ Botón PAGAR ejecutado, esperando redirección...")
                 
-            if tracker and intento > 1:
-                tracker.mark_retry(f"Intento {intento} de click en Pagar")
-            await record_step(f"Intento {intento}/4 de click en Pagar...")
-            try:
-                # Esperar a que loading masks desaparezcan
-                loading_mask = page.locator(".el-loading-mask:visible").first
-                if await loading_mask.count() > 0:
-                    await loading_mask.wait_for(state="hidden", timeout=2000)
-
-                # Buscar botones de checkout
-                checkout_elements = await page.locator(".cart-footer__operate, .go_buy, .go_submit").locator("visible=true").all()
-                
-                for idx, btn in enumerate(checkout_elements):
-                    if "cart" not in page.url:
-                        break  # Ya navegó, salir del loop de botones
-                    try:
-                        # Estrategia 1: Mouse click físico en coordenadas (Geométrico)
-                        box = await btn.bounding_box()
-                        if box and box["width"] < 400 and box["height"] < 200:
-                            await page.mouse.click(box["x"] + box["width"]/2, box["y"] + box["height"]/2)
-                            await page.wait_for_timeout(500)
-                            
-                            if "cart" not in page.url:
-                                await record_step("Navegación detectada tras mouse click ✓")
-                                break
-                                
-                        # Estrategia 2: Fallback a JS click (Inyección Directa)
-                        await btn.evaluate("el => el.click()")
-                        await page.wait_for_timeout(500)
-                        
-                        # Check inmediato tras JS click
-                        if "cart" not in page.url:
-                            await record_step("Navegación detectada tras JS click ✓")
-                            break
-                    except Exception:
-                        pass
-                
-                # Verificación final de URL
-                if "cart" not in page.url:
-                    pagar_success = True
-                    await record_step("Fuera del carrito ✓")
-                    break
-                else:
-                    # Esperar un poco más por si la navegación es lenta
-                    await page.wait_for_timeout(1500)
-                    if "cart" not in page.url:
+                # Esperar agresivamente a que la URL cambie, salir en cuanto deje de ser /cart
+                for i in range(15):  # Esperar maximo 7.5 segundos
+                    await page.wait_for_timeout(500)
+                    if "buy/confirm" in page.url or "cart" not in page.url:
                         pagar_success = True
-                        await record_step("Navegación tardía detectada ✓")
+                        await record_step("✔ Tránsito hacia Confirmación validado.")
                         break
-                    
-            except Exception as e:
-                await record_step(f"Error intento {intento}: {str(e)[:50]}")
-                
+            else:
+                await record_step("No se pudo disparar botón Pagar en DOM.")
+        except Exception as e:
+            await record_step(f"Error forzando Pagar: {str(e)[:50]}")
+            
         if not pagar_success:
-            await record_step("⚠ Todos los intentos de Pagar fallaron — forzando continuación")
+            await record_step("⚠ No se pudo validar la redirección de Pagar automáticamente — forzando continuación")
         
         await page.wait_for_timeout(1000)
         if tracker:
