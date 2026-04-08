@@ -61,6 +61,13 @@ async def init_db():
             """))
         except Exception:
             pass
+            
+        # Parche para eliminar estados de base de datos obsoletos (IN_STOCK, PURCHASING, ERROR, RESERVED)
+        # SQLAlchemy lanza LookupError si los lee e intenta convertirlos a el Enum acotado actual (monitoring/paused)
+        try:
+            await conn.execute(text("UPDATE products SET status = 'monitoring' WHERE status NOT IN ('monitoring', 'paused')"))
+        except Exception:
+            pass
 
 
 async def get_db():
