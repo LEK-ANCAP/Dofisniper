@@ -255,20 +255,12 @@ async def add_to_cart_and_checkout(
             tracker.mark_step_done("routing")
 
         # ══════════════════════════════════════════════════════════
-        # PASO 2: NAVEGACIÓN (Sin Login, ya se asume logueado por el worker global)
+        # PASO 2: NAVEGACIÓN RÁPIDA
         # ══════════════════════════════════════════════════════════
-        if tracker:
-            tracker.advance_to("navigate", "Verificando página del producto...")
-        
-        await record_step("Asegurando página del producto...")
         if page.url != product_url:
             await page.goto(product_url, wait_until="domcontentloaded", timeout=30000)
-            await page.wait_for_timeout(1000)
-            
-        await record_step("Página del producto lista ✓")
+            # OMITIDO: await page.wait_for_timeout(1000) para ir directo y sin pausas al intento de click
         
-        if tracker:
-            tracker.mark_step_done("navigate")
 
         # ══════════════════════════════════════════════════════════
         # PASO 3: AÑADIR AL CARRITO
