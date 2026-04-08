@@ -41,6 +41,20 @@ async def update_settings(settings_update: AppSettingsUpdate, db: AsyncSession =
         settings.dofimall_password = settings_update.dofimall_password
     if settings_update.keep_alive_enabled is not None:
         settings.keep_alive_enabled = settings_update.keep_alive_enabled
+    if settings_update.scan_interval_seconds is not None:
+        old_interval = settings.scan_interval_seconds
+        settings.scan_interval_seconds = settings_update.scan_interval_seconds
+        
+        # Forzar reprogramación de TODOS los jobs de escaneo al nuevo intervalo
+        if old_interval != settings_update.scan_interval_seconds:
+            try:
+                from app.main import scheduler
+                new_interval = settings_update.scan_interval_seconds
+                for job in scheduler.get_jobs():
+                    if job.id.startswith("scan_product_"):
+                        scheduler.reschedule_job(job.id, trigger='interval', seconds=new_interval)
+            except Exception:
+                pass  # scheduler might not be accessible in some contexts
         
     await db.commit()
     await db.refresh(settings)

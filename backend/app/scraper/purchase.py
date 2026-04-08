@@ -201,7 +201,8 @@ async def add_to_cart_and_checkout(
     target_quantity: int,
     email: str = None,
     password: str = None,
-    product_id: int = None
+    product_id: int = None,
+    pre_routed_wh_name: str = None
 ):
     result = {"success": False, "message": "", "checkout_url": None}
     
@@ -239,36 +240,15 @@ async def add_to_cart_and_checkout(
         # PASO 1: ENRUTAMIENTO DE ALMACÉN
         # ══════════════════════════════════════════════════════════
         if tracker:
-            tracker.advance_to("routing", "Calculando almacén prioritario...")
+            tracker.advance_to("routing", "Aplicando enrutamiento pre-calculado por Monitoreo...")
         
-        from app.scraper.monitor import check_stock
-        from urllib.parse import urlparse, parse_qs, urlencode, urlunparse
-        
-        await record_step("Consultando stock y almacenes disponibles...")
-        stock_info = await check_stock(page, product_url)
-        
-        best_wh = None
-        if stock_info and stock_info.warehouses:
-            physicals = [w for w in stock_info.warehouses if w.warehouse_stock > 0]
-            transits = [w for w in stock_info.warehouses if w.transit_stock > 0]
-            
-            if physicals:
-                physicals.sort(key=lambda w: 0 if "camag" in w.name.lower() else 1)
-                best_wh = physicals[0]
-            elif transits:
-                transits.sort(key=lambda w: 0 if "camag" in w.name.lower() else 1)
-                best_wh = transits[0]
-                
-        if best_wh:
-            parsed = urlparse(product_url)
-            qs = parse_qs(parsed.query)
-            qs["warehouseId"] = [str(best_wh.address_id)]
-            new_query = urlencode(qs, doseq=True)
-            product_url = urlunparse(parsed._replace(query=new_query))
-            await record_step(f"Enrutado a: {best_wh.name} (ID: {best_wh.address_id})")
-            logger.info(f"📍 URL de compra enrutada al almacén prioritario: {best_wh.name} ({best_wh.address_id})")
+        # El enrutamiento fue pre-calculado por el proceso de monitoreo o llamada manual
+        # para ahorrar ~3-5 segundos críticos de request adicional.
+        if pre_routed_wh_name:
+            await record_step(f"Ruta instantánea inyectada: {pre_routed_wh_name}")
+            logger.info(f"📍 MODO TURBO: Usando URL pre-enrutada a {pre_routed_wh_name}")
         else:
-            await record_step("Sin almacén preferente — usando ruta por defecto")
+            await record_step("Ruta instantánea inyectada (Manual / Default)")
         
         if tracker:
             tracker.mark_step_done("routing")
@@ -473,16 +453,7 @@ async def add_to_cart_and_checkout(
                     if "cart" not in page.url:
                         break  # Ya navegó, salir del loop de botones
                     try:
-                        # Estrategia 1: JS click (más rápido)
-                        await btn.evaluate("el => el.click()")
-                        await page.wait_for_timeout(500)
-                        
-                        # Check inmediato tras JS click
-                        if "cart" not in page.url:
-                            await record_step("Navegación detectada tras JS click ✓")
-                            break
-                        
-                        # Estrategia 2: Mouse click en coordenadas
+                        # Estrategia 1: Mouse click físico en coordenadas (Geométrico)
                         box = await btn.bounding_box()
                         if box and box["width"] < 400 and box["height"] < 200:
                             await page.mouse.click(box["x"] + box["width"]/2, box["y"] + box["height"]/2)
@@ -491,6 +462,15 @@ async def add_to_cart_and_checkout(
                             if "cart" not in page.url:
                                 await record_step("Navegación detectada tras mouse click ✓")
                                 break
+                                
+                        # Estrategia 2: Fallback a JS click (Inyección Directa)
+                        await btn.evaluate("el => el.click()")
+                        await page.wait_for_timeout(500)
+                        
+                        # Check inmediato tras JS click
+                        if "cart" not in page.url:
+                            await record_step("Navegación detectada tras JS click ✓")
+                            break
                     except Exception:
                         pass
                 

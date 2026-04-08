@@ -284,3 +284,20 @@ async def _parse_api_response_all_warehouses(
         warehouses=warehouses,
         warehouse_breakdown=warehouse_breakdown
     )
+
+def get_best_warehouse(stock_info: StockCheckResult) -> WarehouseInfo | None:
+    """Calcula el almacén prioritario según stock disponible y prioridad de sucursales."""
+    if not stock_info or not stock_info.warehouses:
+        return None
+        
+    physicals = [w for w in stock_info.warehouses if w.warehouse_stock > 0]
+    transits = [w for w in stock_info.warehouses if w.transit_stock > 0]
+    
+    if physicals:
+        physicals.sort(key=lambda w: 0 if "camag" in w.name.lower() else 1)
+        return physicals[0]
+    elif transits:
+        transits.sort(key=lambda w: 0 if "camag" in w.name.lower() else 1)
+        return transits[0]
+        
+    return None

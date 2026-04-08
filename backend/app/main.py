@@ -108,13 +108,31 @@ async def persistent_checkout_loop(product_id: int):
                         continue
 
                 page = await browser_manager.get_page()
-                logger.info(f"⚡ [HILO CHECKOUT {product_id}] Disparando Playwright (Pidiendo {actual_target_qty}U)...")
+                
+                # ENRUTAMIENTO PRE-CALCULADO DESDE EL MONITOREO
+                from app.scraper.monitor import get_best_warehouse
+                from urllib.parse import urlparse, parse_qs, urlencode, urlunparse
+                
+                best_wh = get_best_warehouse(stock_result)
+                routed_url = product.url
+                pre_routed_wh_name = None
+                
+                if best_wh:
+                    parsed = urlparse(routed_url)
+                    qs = parse_qs(parsed.query)
+                    qs["warehouseId"] = [str(best_wh.address_id)]
+                    new_query = urlencode(qs, doseq=True)
+                    routed_url = urlunparse(parsed._replace(query=new_query))
+                    pre_routed_wh_name = best_wh.name
+
+                logger.info(f"⚡ [HILO CHECKOUT {product_id}] Disparando Playwright (Pidiendo {actual_target_qty}U a {pre_routed_wh_name or 'Default'})...")
 
                 checkout_result = await add_to_cart_and_checkout(
-                    page, product.url,
+                    page, routed_url,
                     target_quantity=actual_target_qty,
                     email=email, password=password,
-                    product_id=product.id
+                    product_id=product.id,
+                    pre_routed_wh_name=pre_routed_wh_name
                 )
                 
                 await browser_manager.close_page(page)
@@ -134,9 +152,10 @@ async def persistent_checkout_loop(product_id: int):
                         await asyncio.sleep(30) # Pausa de seguridad antes de volver a atacar
                         continue
                     else:
-                        logger.success(f"🎉 [HILO CHECKOUT {product_id}] Objetivo Asegurado. MODO PAUSA - Desactivando sniper.")
+                        logger.success(f"🎉 [HILO CHECKOUT {product_id}] Objetivo Asegurado. MODO PAUSA - Auto-buy desactivado, monitoreo continúa.")
                         product.auto_buy = False 
-                        product.is_active = False # Pausamos el monitoreo general también
+                        product.status = ProductStatus.RESERVED
+                        # is_active se mantiene True para seguir vigilando
                         await db.commit()
                         break
                 else:

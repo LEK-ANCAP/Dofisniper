@@ -26,12 +26,12 @@ function TacticalBadge({ children, active, className="", onClick }) {
 }
 
 function AutoBuyCountdown({ isActive, autoBuy, status }) {
-   const [secs, setSecs] = useState(10);
+   const [secs, setSecs] = useState(3);
    useEffect(() => {
       if (!isActive || !autoBuy) return;
-      setSecs(10);
+      setSecs(3);
       const t = setInterval(() => {
-         setSecs(s => s > 0 ? s - 1 : 10);
+         setSecs(s => s > 0 ? s - 1 : 3);
       }, 1000);
       return () => clearInterval(t);
    }, [isActive, autoBuy]);
@@ -56,11 +56,11 @@ function AutoBuyCountdown({ isActive, autoBuy, status }) {
 }
 
 function ScanCountdown({ isActive }) {
-   const [secs, setSecs] = useState(10);
+   const [secs, setSecs] = useState(3);
    useEffect(() => {
       if (!isActive) return;
       const t = setInterval(() => {
-         setSecs(s => s > 0 ? s - 1 : 10);
+         setSecs(s => s > 0 ? s - 1 : 3);
       }, 1000);
       return () => clearInterval(t);
    }, [isActive]);
@@ -182,7 +182,7 @@ function ProductItem({ product, i, onDelete, onToggle, onCheckout, onOpenEdit })
               
               // Handle post-purchase action
               if (product.post_purchase_action === 'pause') {
-                  await updateProduct(product.id, { is_active: false, auto_buy: false });
+                  await updateProduct(product.id, { auto_buy: false });
                   onToggle(product.id, { preventBackend: true });
               }
 
@@ -426,10 +426,32 @@ function ProductItem({ product, i, onDelete, onToggle, onCheckout, onOpenEdit })
                          <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
                             <div>
                                <label className="text-[10px] font-mono text-surface-400 tracking-wider block mb-1 font-bold uppercase">Cantidad</label>
-                               <select value={targetQty} onChange={e => { const v = e.target.value; setTargetQty(v === '-1' ? -1 : parseInt(v)); }} onBlur={handleSaveConfig} className="bg-surface-900 border border-surface-700 text-brand-400 w-full p-2 focus:border-brand-400 focus:outline-none text-center font-mono text-sm shadow-inner appearance-none cursor-pointer">
-                                  <option value="-1" className="text-amber-500 font-bold">⚡ MAX</option>
-                                  {[1,2,3,4,5,6,7,8,9,10,15,20,50].map(n => <option key={n} value={n}>{n}</option>)}
-                               </select>
+                               <div className="flex gap-2">
+                                  <input 
+                                     type="number" min="1" max="999" 
+                                     value={targetQty === -1 || targetQty === '-1' ? '' : targetQty} 
+                                     disabled={targetQty === -1 || targetQty === '-1'}
+                                     onChange={e=>setTargetQty(e.target.value ? parseInt(e.target.value) : 1)} 
+                                     onBlur={handleSaveConfig} 
+                                     className="bg-surface-900 border border-surface-700 text-brand-400 w-full p-2 focus:border-brand-400 disabled:opacity-30 disabled:cursor-not-allowed focus:outline-none text-center font-mono text-sm shadow-inner" 
+                                  />
+                                  <label className={`flex items-center justify-center px-3 border cursor-pointer transition-colors ${targetQty === -1 || targetQty === '-1' ? 'bg-amber-500/20 border-amber-500 shadow-[0_0_10px_rgba(255,176,0,0.2)]' : 'bg-surface-900 border-surface-700 hover:border-surface-600'}`}>
+                                     <input 
+                                        type="checkbox" 
+                                        className="hidden"
+                                        checked={targetQty === -1 || targetQty === '-1'} 
+                                        onChange={async (e) => {
+                                           const val = e.target.checked ? -1 : 1;
+                                           setTargetQty(val);
+                                           try {
+                                              await updateProduct(product.id, { target_quantity: val, min_stock_to_trigger: parseInt(minTrigger) });
+                                              toast.success("CONFIG_SAVED", { style: { background: '#1e293b', color: '#38bdf8', border: '1px solid #0c4a6e' }});
+                                           } catch(err) {}
+                                        }}
+                                     />
+                                     <span className={`text-[10px] font-mono font-bold tracking-wider ${targetQty === -1 || targetQty === '-1' ? 'text-amber-500' : 'text-surface-500'}`}>MAX</span>
+                                  </label>
+                               </div>
                             </div>
                             <div>
                                <label className="text-[10px] font-mono text-surface-400 tracking-wider block mb-1 font-bold uppercase">Min Stock</label>

@@ -122,11 +122,23 @@ async def update_product(
     if not product:
         raise HTTPException(404, "Producto no encontrado")
 
+    # Capturar estado previo ANTES de aplicar cambios
+    was_auto_buy = product.auto_buy
+    
     for field, value in update.model_dump(exclude_unset=True).items():
         setattr(product, field, value)
 
     await db.commit()
     await db.refresh(product)
+    
+    # Si auto_buy pasó de False → True, disparar inmediatamente el checkout loop
+    if not was_auto_buy and product.auto_buy:
+        import asyncio
+        from app.main import persistent_checkout_loop, active_checkout_tasks
+        if product.id not in active_checkout_tasks:
+            task = asyncio.create_task(persistent_checkout_loop(product.id))
+            active_checkout_tasks[product.id] = task
+    
     return product
 
 
@@ -186,11 +198,31 @@ async def _run_checkout_background(product_id: int, product_url: str):
                 actual_target_qty = total_stock if total_stock > 0 else 1
 
         page = await browser_manager.get_page()
+        
+        # ENRUTAMIENTO PRE-CALCULADO MANUAL
+        from app.scraper.monitor import check_stock, get_best_warehouse
+        from urllib.parse import urlparse, parse_qs, urlencode, urlunparse
+        
+        # En el caso de compra forzada, sacamos el stock rapidísimo desde el requests nativo
+        stock_result = await check_stock(None, product_url)
+        best_wh = get_best_warehouse(stock_result)
+        routed_url = product_url
+        pre_routed_wh_name = None
+        
+        if best_wh:
+            parsed = urlparse(routed_url)
+            qs = parse_qs(parsed.query)
+            qs["warehouseId"] = [str(best_wh.address_id)]
+            new_query = urlencode(qs, doseq=True)
+            routed_url = urlunparse(parsed._replace(query=new_query))
+            pre_routed_wh_name = best_wh.name
+
         checkout_result = await add_to_cart_and_checkout(
-            page, product_url, 
+            page, routed_url, 
             target_quantity=actual_target_qty, 
             email=email, password=password,
-            product_id=product_id
+            product_id=product_id,
+            pre_routed_wh_name=pre_routed_wh_name
         )
         await browser_manager.close_page(page)
 
