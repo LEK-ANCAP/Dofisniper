@@ -362,20 +362,36 @@ async def add_to_cart_and_checkout(
                 selected_count = int(match.group(1)) if match else -1
                 
                 if selected_count == 0:
-                    await record_step(f"0 productos seleccionados — forzando selección general...")
+                    await record_step(f"0 productos seleccionados — forzando selección general ('Seleccionar todo')...")
                     
-                    # Hacer click en 'Seleccionar todo' o forzar las imagenes-checkbox
+                    # Hacer click en 'Seleccionar todo'
                     await page.evaluate("""() => {
-                        const selTodos = document.querySelectorAll('.options_sel, .cart-footer__all');
-                        if (selTodos.length > 0) {
-                            selTodos[0].click();
-                        } else {
+                        // Buscar explicitamente los contenedores de "Seleccionar todo"
+                        const containers = document.querySelectorAll('.options_sel, .cart_title_pre, .cart-footer__all');
+                        let clicked = false;
+                        
+                        for (let el of containers) {
+                            if (el.innerText && el.innerText.toUpperCase().includes('SELECCIONAR TODO')) {
+                                // Disparar click en el div
+                                el.click();
+                                // Disparar click en la imagen interna (a veces Vue atilde el evento solo a la imagen)
+                                const img = el.querySelector('img');
+                                if (img) img.click();
+                                clicked = true;
+                                break;
+                            }
+                        }
+                        
+                        if (!clicked) {
+                            // Fallback de emergencia
                             const checkboxes = document.querySelectorAll('.store_sel, .cart-checkbox__icon');
-                            checkboxes.forEach(cb => cb.click());
+                            if (checkboxes.length > 0) {
+                                checkboxes[0].click();
+                            }
                         }
                     }""")
                     await page.wait_for_timeout(800)
-                    await record_step("Clicks forzados en Selección General ✓")
+                    await record_step("Click en 'Seleccionar Todo' ejecutado ✓")
                     return False
                 elif selected_count > 0:
                     await record_step(f"{selected_count} producto(s) seleccionado(s) ✓")
