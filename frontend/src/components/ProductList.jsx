@@ -75,7 +75,7 @@ function ScanCountdown({ isActive }) {
 
 function ProductItem({ product, i, onDelete, onToggle, onCheckout, onOpenEdit }) {
   const [expandedTab, setExpandedTab] = useState(null); 
-  const [targetQty, setTargetQty] = useState(product.target_quantity || 1);
+  const [targetQty, setTargetQty] = useState(product.target_quantity ?? 1);
   const [minTrigger, setMinTrigger] = useState(product.min_stock_to_trigger || 1);
   
   const [logOutput, setLogOutput] = useState('');
@@ -158,7 +158,7 @@ function ProductItem({ product, i, onDelete, onToggle, onCheckout, onOpenEdit })
   const handleSaveConfig = async () => {
      try {
         await updateProduct(product.id, {
-           target_quantity: parseInt(targetQty),
+           target_quantity: targetQty === -1 || targetQty === '-1' ? -1 : parseInt(targetQty) || 1,
            min_stock_to_trigger: parseInt(minTrigger)
         });
         toast.success("CONFIG_SAVED", { style: { background: '#1e293b', color: '#38bdf8', border: '1px solid #0c4a6e' }});
@@ -426,7 +426,10 @@ function ProductItem({ product, i, onDelete, onToggle, onCheckout, onOpenEdit })
                          <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
                             <div>
                                <label className="text-[10px] font-mono text-surface-400 tracking-wider block mb-1 font-bold uppercase">Cantidad</label>
-                               <input type="number" min="1" max="999" value={targetQty} onChange={e=>setTargetQty(e.target.value)} onBlur={handleSaveConfig} className="bg-surface-900 border border-surface-700 text-brand-400 w-full p-2 focus:border-brand-400 focus:outline-none text-center font-mono text-sm shadow-inner" />
+                               <select value={targetQty} onChange={e => { const v = e.target.value; setTargetQty(v === '-1' ? -1 : parseInt(v)); }} onBlur={handleSaveConfig} className="bg-surface-900 border border-surface-700 text-brand-400 w-full p-2 focus:border-brand-400 focus:outline-none text-center font-mono text-sm shadow-inner appearance-none cursor-pointer">
+                                  <option value="-1" className="text-amber-500 font-bold">⚡ MAX</option>
+                                  {[1,2,3,4,5,6,7,8,9,10,15,20,50].map(n => <option key={n} value={n}>{n}</option>)}
+                               </select>
                             </div>
                             <div>
                                <label className="text-[10px] font-mono text-surface-400 tracking-wider block mb-1 font-bold uppercase">Min Stock</label>
