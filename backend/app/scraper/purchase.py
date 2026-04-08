@@ -401,7 +401,8 @@ async def add_to_cart_and_checkout(
                 await record_step(f"Error verificando selección: {str(e)[:60]}")
                 return True  # Continuar de todas formas
         
-        await ensure_products_selected()
+        # Comentado para MODO TURBO extremo: Asumimos por defecto que el producto viene seleccionado
+        # await ensure_products_selected()
 
         # Ajustar cantidad (forzar mínimo 1)
         effective_qty = max(target_quantity, 1)
