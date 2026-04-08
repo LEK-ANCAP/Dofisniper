@@ -130,6 +130,8 @@ export default function ConfigPanel() {
       if (res.success) {
         toast.success(res.message, { id: toastId });
         setSessionStatus({ active: false, checking: false });
+        // Detener auto-relogin en App.jsx
+        window.dispatchEvent(new Event('dofimall-session-paused'));
       } else {
         toast.error(res.message, { id: toastId });
       }
@@ -145,6 +147,8 @@ export default function ConfigPanel() {
        const res = await forceLogin();
        if (res.success) {
            toast.success('Bot Inyectado: ' + res.message, { id: toastId });
+           // Reanudar auto-relogin
+           window.dispatchEvent(new Event('dofimall-session-resumed'));
        } else {
            toast.error(res.message || 'Fallo al iniciar sesión.', { id: toastId });
        }

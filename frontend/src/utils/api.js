@@ -19,9 +19,9 @@ async function request(path, options = {}) {
 
   if (res.status === 401) {
     localStorage.removeItem('sniper_token');
-    if (!window.location.pathname.includes('/login')) {
-      window.location.href = '/login';
-    }
+    // Dispatch event so App.jsx can react (SPA, no hard redirect)
+    window.dispatchEvent(new Event('sniper-logout'));
+    throw new Error('Sesión expirada');
   }
 
   if (!res.ok) {

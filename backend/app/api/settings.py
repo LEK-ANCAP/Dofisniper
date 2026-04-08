@@ -69,7 +69,12 @@ from app.scraper.browser import browser_manager
 async def force_logout_browser():
     """Destruye la sesión de Playwright liberando las cookies actuales."""
     try:
-        await browser_manager.close()
+        # Marcar como deslogueado ANTES de destruir para que keep-alive no reloguee
+        browser_manager._is_logged_in = False
+        
+        # Cerrar el browser (el método se llama stop(), no close())
+        await browser_manager.stop()
+        
         import shutil
         import os
         # Delete browser context to wipe out cookies and saved states
@@ -79,7 +84,7 @@ async def force_logout_browser():
         # Reiniciamos el browser limpio
         import asyncio
         asyncio.create_task(browser_manager.start())
-        return {"success": True, "message": "Sesión del navegador destruida con éxito. Esperando nuevo login."}
+        return {"success": True, "message": "Sesión del navegador destruida con éxito. Puedes cambiar de cuenta ahora."}
     except Exception as e:
         return {"success": False, "message": f"Error al destruir sesión: {str(e)}"}
 

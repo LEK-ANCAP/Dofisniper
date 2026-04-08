@@ -38,11 +38,11 @@ class ProductUpdate(BaseModel):
     is_active: Optional[bool] = None
     status: Optional[ProductStatus] = None
     notes: Optional[str] = None
-    target_quantity: Optional[int] = None
     min_local_to_trigger: Optional[int] = None
+    target_qty_local: Optional[int] = None
     min_transit_to_trigger: Optional[int] = None
+    target_qty_transit: Optional[int] = None
     auto_buy: Optional[bool] = None
-    post_purchase_action: Optional[str] = None
     category_id: Optional[int] = None
 
 
@@ -65,11 +65,13 @@ class ProductResponse(BaseModel):
     stock_type: Optional[int] = None
     stock_type_label: Optional[str] = None
     warehouse_breakdown: Optional[list[dict[str, Any]]] = None
-    target_quantity: int = 1
+    
     min_local_to_trigger: int = 1
+    target_qty_local: int = 1
     min_transit_to_trigger: int = 0
+    target_qty_transit: int = 0
+    
     auto_buy: bool = False
-    post_purchase_action: str = "pause"
     created_at: datetime
     updated_at: datetime
 

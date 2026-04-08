@@ -7,12 +7,8 @@ import enum
 
 
 class ProductStatus(str, enum.Enum):
-    MONITORING = "monitoring"       # Activamente monitorizando
-    IN_STOCK = "in_stock"           # Detectado en stock
-    PURCHASING = "purchasing"       # Compra automática en proceso
-    RESERVED = "reserved"           # Añadido al carrito / reservado
+    MONITORING = "monitoring"       # Activamente monitorizando y/o comprando
     PAUSED = "paused"               # Pausado por el usuario
-    ERROR = "error"                 # Error en el scraping
 
 
 class LogLevel(str, enum.Enum):
@@ -60,11 +56,13 @@ class Product(Base):
     warehouse_breakdown = Column(JSON, nullable=True)  # [{name, warehouse_stock, transit_stock, area}, ...]
 
     # Snipe Config
-    target_quantity = Column(Integer, default=1)      # Cantidad que intentar comprar
     min_local_to_trigger = Column(Integer, default=1)   # Mínimo stock LOCAL por almacén para disparar
+    target_qty_local = Column(Integer, default=1)       # Cantidad que intentar comprar del almacén
+    
     min_transit_to_trigger = Column(Integer, default=0)  # Mínimo stock TRÁNSITO por almacén para disparar (0 = ignorar)
+    target_qty_transit = Column(Integer, default=0)      # Cantidad que intentar comprar del tránsito
+    
     auto_buy = Column(Boolean, default=False)          # Compra automática independiente de monitorización
-    post_purchase_action = Column(String(20), default="pause") # loop | pause
 
     created_at = Column(DateTime, server_default=func.now())
     updated_at = Column(DateTime, server_default=func.now(), onupdate=func.now())

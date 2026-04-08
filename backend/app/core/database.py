@@ -41,6 +41,16 @@ async def init_db():
             await conn.execute(text("ALTER TABLE products ADD COLUMN min_transit_to_trigger INTEGER DEFAULT 0"))
         except Exception:
             pass
+            
+        try:
+            await conn.execute(text("ALTER TABLE products ADD COLUMN target_qty_local INTEGER DEFAULT 1"))
+        except Exception:
+            pass
+            
+        try:
+            await conn.execute(text("ALTER TABLE products ADD COLUMN target_qty_transit INTEGER DEFAULT 0"))
+        except Exception:
+            pass
         # Copiar valor viejo de min_stock_to_trigger a min_local_to_trigger si existe
         try:
             await conn.execute(text("""

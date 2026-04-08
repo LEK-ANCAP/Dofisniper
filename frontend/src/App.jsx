@@ -29,6 +29,7 @@ export default function App() {
   const [showAddForm, setShowAddForm] = useState(false);
   const [tab, setTab] = useState('products');
   const [isAuthenticated, setIsAuthenticated] = useState(!!localStorage.getItem('sniper_token'));
+  const [sessionPaused, setSessionPaused] = useState(false); // Pausa auto-relogin cuando el usuario cierra sesión DofiMall manualmente
 
   const handleLogout = useCallback(() => {
     localStorage.removeItem('sniper_token');
@@ -61,7 +62,28 @@ export default function App() {
     window.addEventListener('refresh-products', loadData);
     return () => window.removeEventListener('refresh-products', loadData);
   }, [loadData]);
+
+  // Listen for forced logout from API (401) or manual logout
+  useEffect(() => {
+    const onForceLogout = () => {
+      setIsAuthenticated(false);
+    };
+    window.addEventListener('sniper-logout', onForceLogout);
+    return () => window.removeEventListener('sniper-logout', onForceLogout);
+  }, []);
   
+  // Listen for DofiMall session pause/resume events from ConfigPanel
+  useEffect(() => {
+    const onPause = () => setSessionPaused(true);
+    const onResume = () => setSessionPaused(false);
+    window.addEventListener('dofimall-session-paused', onPause);
+    window.addEventListener('dofimall-session-resumed', onResume);
+    return () => {
+      window.removeEventListener('dofimall-session-paused', onPause);
+      window.removeEventListener('dofimall-session-resumed', onResume);
+    };
+  }, []);
+
   useEffect(() => {
     if (isAuthenticated) {
       loadData();
@@ -88,7 +110,7 @@ export default function App() {
   }, []);
 
   useEffect(() => {
-      if (isAuthenticated && !sessionActive && !checking && !isInjecting) {
+      if (isAuthenticated && !sessionActive && !checking && !isInjecting && !sessionPaused) {
           const timer = setInterval(() => {
               setAutoLoginTimer(prev => {
                   if (prev <= 1) {
@@ -103,7 +125,7 @@ export default function App() {
       if (sessionActive) {
           setAutoLoginTimer(10);
       }
-  }, [isAuthenticated, sessionActive, isInjecting, handleAutoLogin, checking]);
+  }, [isAuthenticated, sessionActive, isInjecting, handleAutoLogin, checking, sessionPaused]);
 
   const handleAddProduct = async (url, name, category_id) => {
     try {
@@ -221,9 +243,9 @@ export default function App() {
                 </>
               ) : (
                 <>
-                  <ShieldAlert size={12} className="text-red-500" />
-                  <span className="hidden sm:inline font-bold text-red-500">
-                     {isInjecting ? '[ INJECTING... ]' : `[ SIGNAL_LOST: ${autoLoginTimer}s ]`}
+                  <ShieldAlert size={12} className={sessionPaused ? "text-amber-500" : "text-red-500"} />
+                  <span className={`hidden sm:inline font-bold ${sessionPaused ? 'text-amber-500' : 'text-red-500'}`}>
+                     {sessionPaused ? '[ SESIÓN_PAUSADA ]' : isInjecting ? '[ INJECTING... ]' : `[ SIGNAL_LOST: ${autoLoginTimer}s ]`}
                   </span>
                 </>
               )}
