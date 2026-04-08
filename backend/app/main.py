@@ -85,8 +85,6 @@ async def persistent_checkout_loop(product_id: int):
                 email = sys_settings.dofimall_email if sys_settings else ""
                 password = sys_settings.dofimall_password if sys_settings else ""
 
-                actual_target_qty = product.target_quantity
-
                 # Auto-start browser if not running (removes manual dependency)
                 if not browser_manager.is_running:
                     try:
@@ -119,8 +117,16 @@ async def persistent_checkout_loop(product_id: int):
                     continue
 
                 trigger_wh, trigger_type, trigger_qty = trigger_match
+                
+                # Resolving target quantity based on the branch type
+                if trigger_type == 'local':
+                    actual_target_qty = product.target_qty_local
+                else:
+                    actual_target_qty = product.target_qty_transit
+                    
                 if actual_target_qty == -1:
                     actual_target_qty = trigger_qty
+                    
                 logger.info(f"🎯 [HILO CHECKOUT {product_id}] Trigger por {trigger_wh.name} ({trigger_type}: {trigger_qty}U)")
 
                 # 🚀 ¡STOCK DETECTADO! 
