@@ -175,8 +175,7 @@ async def persistent_checkout_loop(product_id: int):
                         await asyncio.sleep(30)
                         continue
                     else:
-                        logger.success(f"🛑 [HILO CHECKOUT {product_id}] Éxito. MODO PAUSA - Deteniendo auto_buy.")
-                        product.status = ProductStatus.PAUSED
+                        logger.success(f"🛑 [HILO CHECKOUT {product_id}] Éxito. Deteniendo auto_buy, pero manteniendo RECON activo.")
                         product.auto_buy = False
                         await db.commit()
                         break
