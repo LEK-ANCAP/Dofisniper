@@ -332,9 +332,9 @@ async def add_to_cart_and_checkout(
             tracker.advance_to("checkout", "Navegando al carrito...")
 
         # Ir al carrito directo por URL (Optimización para evitar delays de la UI)
-        await record_step("Forzando salto rápido a /cart por URL...")
+        await record_step("Forzando salto rápido a /cart/index por URL...")
         try:
-            await page.goto(f"{settings.dofimall_base_url}/cart", wait_until="domcontentloaded", timeout=15000)
+            await page.goto(f"{settings.dofimall_base_url}/cart/index", wait_until="domcontentloaded", timeout=15000)
         except PlaywrightTimeout:
             await record_step("Timeout en carga del carrito — continuando ciegamente...")
             
@@ -412,26 +412,33 @@ async def add_to_cart_and_checkout(
         pagar_success = False
         
         try:
-            # Eliminar posibles bloqueos visuales y ejecutar JS click agresivo
-            clicked = await page.evaluate("""() => {
-                const loadingMask = document.querySelector('.el-loading-mask');
-                if (loadingMask) loadingMask.style.display = 'none';
-                
-                const buttons = document.querySelectorAll('.go_buy, .go_submit, .cart-footer__operate');
-                for (let btn of buttons) {
-                    if (btn.innerText && btn.innerText.toUpperCase().includes('PAGAR')) {
-                        btn.click();
+            # Intentar click estándar directo con Playwright primero (más confiable si los selectores cambiaron internamente)
+            try:
+                pagar_btn_locator = page.locator(".go_buy, .go_submit, .cart-footer__operate, button:has-text('Pagar')").last
+                await pagar_btn_locator.wait_for(state="attached", timeout=2000)
+                await pagar_btn_locator.click(force=True)
+                clicked = True
+            except Exception:
+                # Fallback agresivo con JS puro
+                clicked = await page.evaluate("""() => {
+                    const loadingMask = document.querySelector('.el-loading-mask');
+                    if (loadingMask) loadingMask.style.display = 'none';
+                    
+                    const buttons = document.querySelectorAll('.go_buy, .go_submit, .cart-footer__operate, .pay_btn');
+                    for (let btn of buttons) {
+                        if (btn.innerText && btn.innerText.toUpperCase().includes('PAGAR')) {
+                            btn.click();
+                            return true;
+                        }
+                    }
+                    
+                    // Fallback a cualquier boton de estas clases
+                    if (buttons.length > 0) {
+                        buttons[buttons.length - 1].click();
                         return true;
                     }
-                }
-                
-                // Fallback a cualquier boton de estas clases
-                if (buttons.length > 0) {
-                    buttons[buttons.length - 1].click();
-                    return true;
-                }
-                return false;
-            }""")
+                    return false;
+                }""")
             
             if clicked:
                 await record_step("✔ Botón PAGAR ejecutado, esperando redirección...")
@@ -478,14 +485,22 @@ async def add_to_cart_and_checkout(
         # 2. Click en "Enviar pedido"
         try:
             await record_step("Buscando botón 'Enviar pedido'...")
-            enviar_btn = page.locator("button:has-text('Enviar pedido'), span:has-text('Enviar pedido'), .submit-btn, .goBuy").last
+            # Añadimos .submit_btn o selectores más genéricos por si Dofi cambió la clase
+            enviar_btn = page.locator("button:has-text('Enviar pedido'), span:has-text('Enviar pedido'), .submit-btn, .submit_btn, .goBuy, div.submit-btn").last
             await enviar_btn.wait_for(state="attached", timeout=10000)
+            
+            # Forzar scroll hasta el fondo por si está oculto (Playwright a veces falla si el botón está fuera del viewport y es un div)
+            await page.evaluate("window.scrollTo(0, document.body.scrollHeight)")
+            
             try:
-                await enviar_btn.evaluate("element => element.click()")
-                await record_step("Click en 'Enviar pedido' ejecutado")
+                # Playwright click nativo primero (conecta mejor con los listeners de Vue)
+                await enviar_btn.click(force=True, timeout=2000)
+                await record_step("Click en 'Enviar pedido' ejecutado (Nativo)")
             except Exception:
-                await enviar_btn.click(force=True)
-                await record_step("Force-click en 'Enviar pedido' ejecutado")
+                # Fallback JS Evaluation
+                await enviar_btn.evaluate("element => element.click()")
+                await record_step("Click en 'Enviar pedido' ejecutado (JS)")
+
         except PlaywrightTimeout:
             await record_step("⚠ No se detectó 'Enviar pedido'")
 
