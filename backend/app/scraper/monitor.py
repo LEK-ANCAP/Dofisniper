@@ -257,9 +257,12 @@ async def _parse_api_response_all_warehouses(
         stock_type = int(stock_type)
     stock_type_label = STOCK_TYPE_LABELS.get(stock_type, f"Desconocido ({stock_type})")
 
-    is_valid_type = stock_type in VALID_STOCK_TYPES
+    is_valid_type = stock_type in VALID_STOCK_TYPES or stock_type is None
     has_stock = total_warehouse_stock > 0 or total_transit_stock > 0
-    is_available = is_valid_type and has_stock
+    
+    # If the API says it has stock mathematically, we consider it available
+    # regardless of the strict stockType field which may sometimes be omitted.
+    is_available = has_stock
 
     status_msg = (
         f"Tipo: {stock_type_label}, "
