@@ -100,9 +100,6 @@ class LogResponse(BaseModel):
 class DashboardStats(BaseModel):
     total_products: int
     monitoring: int
-    reserved: int
-    in_stock: int
-    errors: int
     total_checks: int
     scheduler_running: bool
 

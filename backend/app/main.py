@@ -124,8 +124,6 @@ async def persistent_checkout_loop(product_id: int):
 
                 # 🚀 ¡STOCK DETECTADO! 
                 logger.warning(f"🚨 [HILO CHECKOUT {product_id}] ¡STOCK DESCRUBIERTO! ({trigger_type.upper()}: {trigger_qty}U en {trigger_wh.name}). Arrancando secuencia de ataque inmediato...")
-                product.status = ProductStatus.PURCHASING
-                await db.commit()
                 
                 # ENRUTAMIENTO PRE-CALCULADO DESDE EL MONITOREO
                 from app.scraper.monitor import get_best_warehouse
@@ -163,24 +161,13 @@ async def persistent_checkout_loop(product_id: int):
                         subject="AUTO-COMPRA LOGRADA ⚡", product_name=product.name, product_url=product.url, 
                         checkout_url=checkout_result.get("checkout_url"), is_purchase=True, quantity=actual_target_qty
                     )
-                    
-                    if getattr(product, "post_purchase_action", "pause") == "loop":
-                        logger.success(f"♻️ [HILO CHECKOUT {product_id}] Éxito. MODO LOOP ACIVADO - Reingresando en 30s...")
-                        product.status = ProductStatus.MONITORING
-                        await db.commit()
-                        await asyncio.sleep(30) # Pausa de seguridad antes de volver a atacar
-                        continue
-                    else:
-                        logger.success(f"🎉 [HILO CHECKOUT {product_id}] Objetivo Asegurado. MODO PAUSA - Auto-buy desactivado, monitoreo continúa.")
-                        product.auto_buy = False 
-                        product.status = ProductStatus.RESERVED
-                        # is_active se mantiene True para seguir vigilando
-                        await db.commit()
-                        break
+                    logger.success(f"♻️ [HILO CHECKOUT {product_id}] Éxito. MODO FULL-AUTO - Cooldown de seguridad (30s) iniciado...")
+                    await db.commit()
+                    await asyncio.sleep(30) # Pausa de seguridad antes de volver a atacar
+                    continue
                 else:
                     await _log_action(db, product.id, product.name, "auto_purchase_failed", LogLevel.ERROR, "Reintentando ataque...")
                     logger.warning(f"⚠️ [HILO CHECKOUT {product_id}] Falló intento. Reanudando loop en {sys_settings.purchase_interval_seconds}s...")
-                    product.status = ProductStatus.MONITORING
                     await db.commit()
                     await asyncio.sleep(sys_settings.purchase_interval_seconds) # Pausa dinámica antes de reintentar
                     
@@ -204,14 +191,7 @@ async def process_single_product(product_id: int):
         if not product or not product.is_active:
             return
 
-        # Skip scanning if it's already reserved or paused (BUT scan RESERVED if auto_buy is on)
         if product.status == ProductStatus.PAUSED:
-            return
-        if product.status == ProductStatus.RESERVED and not product.auto_buy:
-            return
-
-        # If it's purchasing, do not scan it redundantly here, the checkout loop handles it
-        if product.status == ProductStatus.PURCHASING:
             return
 
         try:
@@ -272,7 +252,7 @@ async def process_single_product(product_id: int):
             
             if stock_result.is_available:
                 product.last_in_stock = datetime.now(timezone.utc)
-                product.status = ProductStatus.IN_STOCK
+                product.status = ProductStatus.MONITORING
                 
                 if is_stock_changed:
                     icon = "📈" if total_delta > 0 else "📉"
@@ -302,7 +282,7 @@ async def process_single_product(product_id: int):
                     trigger_wh, trigger_type, trigger_qty = trigger_match
                     if product.id not in active_checkout_tasks:
                         logger.warning(f"🚀 INICIANDO VUELO TÁCTICO AUTO-COMPRA PARA: {product.name} ({trigger_type.upper()}: {trigger_qty}U en {trigger_wh.name})")
-                        product.status = ProductStatus.PURCHASING
+                        product.status = ProductStatus.MONITORING
                         await _log_action(db, product.id, product.name, "auto_engage_triggered", LogLevel.SUCCESS, f"Auto-engage disparado. {trigger_type.upper()}: {trigger_qty}U en {trigger_wh.name}. Iniciando checkout...")
                         await db.commit()
                         active_checkout_tasks[product.id] = asyncio.create_task(persistent_checkout_loop(product.id))
@@ -310,7 +290,7 @@ async def process_single_product(product_id: int):
                         logger.debug(f"⏳ [{product.name}] Ya hay un hilo de checkout activo, saltando.")
             else:
                 if stock_result.error:
-                    product.status = ProductStatus.ERROR
+                    product.status = ProductStatus.MONITORING
                     await _log_action(db, product.id, product.name, "check_error", LogLevel.WARNING, stock_result.error)
                 else:
                     product.status = ProductStatus.MONITORING
@@ -319,7 +299,7 @@ async def process_single_product(product_id: int):
             
         except Exception as e:
             logger.error(f"💥 Error procesando Job_{product_id}: {e}")
-            product.status = ProductStatus.ERROR
+            product.status = ProductStatus.MONITORING
             await db.commit()
             await _log_action(db, product.id, product.name, "error", LogLevel.ERROR, str(e))
 
@@ -579,12 +559,7 @@ async def get_dashboard(db: AsyncSession = Depends(get_db)):
 
     return DashboardStats(
         total_products=len(all_products),
-        monitoring=sum(1 for p in all_products if p.is_active and p.status in [
-            ProductStatus.MONITORING, ProductStatus.IN_STOCK, ProductStatus.PURCHASING, ProductStatus.ERROR
-        ]),
-        reserved=sum(1 for p in all_products if p.status == ProductStatus.RESERVED),
-        in_stock=sum(1 for p in all_products if p.status == ProductStatus.IN_STOCK),
-        errors=sum(1 for p in all_products if p.is_active and p.status == ProductStatus.ERROR),
+        monitoring=sum(1 for p in all_products if p.is_active and p.status == ProductStatus.MONITORING),
         total_checks=total_checks,
         scheduler_running=scheduler.running,
     )

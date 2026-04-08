@@ -173,7 +173,6 @@ async def toggle_product(product_id: int, db: AsyncSession = Depends(get_db)):
     await db.refresh(product)
     return {"is_active": product.is_active, "status": product.status}
 
-
 async def _run_checkout_background(product_id: int, product_url: str):
     """Ejecuta el checkout en segundo plano y actualiza la DB al finalizar."""
     from app.core.database import async_session
@@ -181,33 +180,39 @@ async def _run_checkout_background(product_id: int, product_url: str):
     from sqlalchemy import select
     
     try:
-        # Extraer parámetros dinámicos
-        async with async_session() as db:
-            result_db = await db.execute(select(Product).where(Product.id == product_id))
-            prod = result_db.scalar_one_or_none()
-            target_qty = prod.target_quantity if prod else 1
-            
-            settings_db = await db.execute(select(AppSettings).limit(1))
-            sys_settings = settings_db.scalar_one_or_none()
-            email = sys_settings.dofimall_email if sys_settings else ""
-            password = sys_settings.dofimall_password if sys_settings else ""
-            
-            actual_target_qty = target_qty
-            if actual_target_qty == -1:
-                total_stock = (prod.warehouse_stock or 0) + (prod.transit_stock or 0)
-                actual_target_qty = total_stock if total_stock > 0 else 1
-
-        page = await browser_manager.get_page()
-        
         # ENRUTAMIENTO PRE-CALCULADO MANUAL
-        from app.scraper.monitor import check_stock, get_best_warehouse
+        from app.scraper.monitor import check_stock, find_triggering_warehouse
         from urllib.parse import urlparse, parse_qs, urlencode, urlunparse
         
         # En el caso de compra forzada, sacamos el stock rapidísimo desde el requests nativo
         stock_result = await check_stock(None, product_url)
-        best_wh = get_best_warehouse(stock_result)
+        
+        # Extraer parámetros dinámicos
+        async with async_session() as db:
+            settings_db = await db.execute(select(AppSettings).limit(1))
+            sys_settings = settings_db.scalar_one_or_none()
+            email = sys_settings.dofimall_email if sys_settings else ""
+            password = sys_settings.dofimall_password if sys_settings else ""
+
+        page = await browser_manager.get_page()
+        
+        target_qty_local = 1
+        target_qty_transit = 1
+        
+        async with async_session() as db:
+            result_db = await db.execute(select(Product).where(Product.id == product_id))
+            prod = result_db.scalar_one_or_none()
+            if prod:
+                target_qty_local = prod.target_qty_local
+                target_qty_transit = prod.target_qty_transit
+                
+        # Para forzar, asumimos trigger de 1 unidad mínimo para cualquiera
+        trigger_match = find_triggering_warehouse(stock_result, 1, 1)
+        best_wh = trigger_match[0] if trigger_match else None
+        
         routed_url = product_url
         pre_routed_wh_name = None
+        actual_target_qty = target_qty_local
         
         if best_wh:
             parsed = urlparse(routed_url)
@@ -216,6 +221,12 @@ async def _run_checkout_background(product_id: int, product_url: str):
             new_query = urlencode(qs, doseq=True)
             routed_url = urlunparse(parsed._replace(query=new_query))
             pre_routed_wh_name = best_wh.name
+            
+            trigger_type = trigger_match[1] if trigger_match else 'local'
+            if trigger_type == 'transit':
+                actual_target_qty = target_qty_transit
+            else:
+                actual_target_qty = target_qty_local
 
         checkout_result = await add_to_cart_and_checkout(
             page, routed_url, 
@@ -232,7 +243,7 @@ async def _run_checkout_background(product_id: int, product_url: str):
                 result_db = await db.execute(select(Product).where(Product.id == product_id))
                 prod = result_db.scalar_one_or_none()
                 if prod:
-                    prod.status = ProductStatus.RESERVED
+                    prod.status = ProductStatus.MONITORING
                     
                     # Log de éxito
                     log = ActionLog(

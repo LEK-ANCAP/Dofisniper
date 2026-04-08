@@ -75,7 +75,8 @@ function ScanCountdown({ isActive }) {
 
 function ProductItem({ product, i, onDelete, onToggle, onCheckout, onOpenEdit }) {
   const [expandedTab, setExpandedTab] = useState(null); 
-  const [targetQty, setTargetQty] = useState(product.target_quantity ?? 1);
+  const [targetQtyLocal, setTargetQtyLocal] = useState(product.target_qty_local ?? 1);
+  const [targetQtyTransit, setTargetQtyTransit] = useState(product.target_qty_transit ?? 1);
   const [minLocal, setMinLocal] = useState(product.min_local_to_trigger ?? 1);
   const [minTransit, setMinTransit] = useState(product.min_transit_to_trigger ?? 0);
   
@@ -159,7 +160,8 @@ function ProductItem({ product, i, onDelete, onToggle, onCheckout, onOpenEdit })
   const handleSaveConfig = async () => {
      try {
         await updateProduct(product.id, {
-           target_quantity: targetQty === -1 || targetQty === '-1' ? -1 : parseInt(targetQty) || 1,
+           target_qty_local: targetQtyLocal === -1 || targetQtyLocal === '-1' ? -1 : parseInt(targetQtyLocal) || 1,
+           target_qty_transit: targetQtyTransit === -1 || targetQtyTransit === '-1' ? -1 : parseInt(targetQtyTransit) || 1,
            min_local_to_trigger: parseInt(minLocal) || 0,
            min_transit_to_trigger: parseInt(minTransit) || 0
         });
@@ -425,50 +427,73 @@ function ProductItem({ product, i, onDelete, onToggle, onCheckout, onOpenEdit })
                                <div className={`w-4 h-4 shadow-sm ${product.auto_buy ? 'bg-amber-500 shadow-[0_0_10px_rgba(255,176,0,0.8)]' : 'bg-surface-600'}`} />
                             </div>
                          </label>
-                         <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-5 gap-3">
+                         <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-4 gap-3">
                             <div>
-                               <label className="text-[10px] font-mono text-surface-400 tracking-wider block mb-1 font-bold uppercase">Cantidad</label>
+                               <label className="text-[10px] font-mono text-surface-400 tracking-wider block mb-1 font-bold uppercase">Target Local</label>
                                <div className="flex gap-2">
                                   <input 
                                      type="number" min="1" max="999" 
-                                     value={targetQty === -1 || targetQty === '-1' ? '' : targetQty} 
-                                     disabled={targetQty === -1 || targetQty === '-1'}
-                                     onChange={e=>setTargetQty(e.target.value ? parseInt(e.target.value) : 1)} 
+                                     value={targetQtyLocal === -1 || targetQtyLocal === '-1' ? '' : targetQtyLocal} 
+                                     disabled={targetQtyLocal === -1 || targetQtyLocal === '-1'}
+                                     onChange={e=>setTargetQtyLocal(e.target.value ? parseInt(e.target.value) : 1)} 
                                      onBlur={handleSaveConfig} 
-                                     className="bg-surface-900 border border-surface-700 text-brand-400 w-full p-2 focus:border-brand-400 disabled:opacity-30 disabled:cursor-not-allowed focus:outline-none text-center font-mono text-sm shadow-inner" 
+                                     className="bg-surface-900 border border-surface-700 text-amber-500 w-full p-2 focus:border-amber-500 disabled:opacity-30 disabled:cursor-not-allowed focus:outline-none text-center font-mono text-sm shadow-inner" 
                                   />
-                                  <label className={`flex items-center justify-center px-3 border cursor-pointer transition-colors ${targetQty === -1 || targetQty === '-1' ? 'bg-amber-500/20 border-amber-500 shadow-[0_0_10px_rgba(255,176,0,0.2)]' : 'bg-surface-900 border-surface-700 hover:border-surface-600'}`}>
+                                  <label className={`flex items-center justify-center px-3 border cursor-pointer transition-colors ${targetQtyLocal === -1 || targetQtyLocal === '-1' ? 'bg-amber-500/20 border-amber-500 shadow-[0_0_10px_rgba(255,176,0,0.2)]' : 'bg-surface-900 border-surface-700 hover:border-surface-600'}`}>
                                      <input 
                                         type="checkbox" 
                                         className="hidden"
-                                        checked={targetQty === -1 || targetQty === '-1'} 
+                                        checked={targetQtyLocal === -1 || targetQtyLocal === '-1'} 
                                         onChange={async (e) => {
                                            const val = e.target.checked ? -1 : 1;
-                                           setTargetQty(val);
+                                           setTargetQtyLocal(val);
                                            try {
-                                              await updateProduct(product.id, { target_quantity: val, min_local_to_trigger: parseInt(minLocal) || 0, min_transit_to_trigger: parseInt(minTransit) || 0 });
-                                              toast.success("CONFIG_SAVED", { style: { background: '#1e293b', color: '#38bdf8', border: '1px solid #0c4a6e' }});
+                                              await updateProduct(product.id, { target_qty_local: val });
+                                              toast.success("CONFIG SAVED");
                                            } catch(err) {}
                                         }}
                                      />
-                                     <span className={`text-[10px] font-mono font-bold tracking-wider ${targetQty === -1 || targetQty === '-1' ? 'text-amber-500' : 'text-surface-500'}`}>MAX</span>
+                                     <span className={`text-[10px] font-mono font-bold tracking-wider ${targetQtyLocal === -1 || targetQtyLocal === '-1' ? 'text-amber-500' : 'text-surface-500'}`}>MAX</span>
                                   </label>
                                </div>
                             </div>
                             <div>
-                               <label className="text-[10px] font-mono text-surface-400 tracking-wider block mb-1 font-bold uppercase">Min Local</label>
-                               <input type="number" min="0" max="999" value={minLocal} onChange={e=>setMinLocal(e.target.value)} onBlur={handleSaveConfig} className="bg-surface-900 border border-surface-700 text-amber-500 w-full p-2 focus:border-amber-500 focus:outline-none text-center font-mono text-sm shadow-inner" title="Mínimo stock LOCAL por almacén para disparar (0 = ignorar local)" />
+                               <label className="text-[10px] font-mono text-surface-400 tracking-wider block mb-1 font-bold uppercase">Trigger Local</label>
+                               <input type="number" min="0" max="999" value={minLocal} onChange={e=>setMinLocal(e.target.value)} onBlur={handleSaveConfig} className="bg-surface-900 border border-surface-700 text-amber-300 w-full p-2 focus:border-amber-500 focus:outline-none text-center font-mono text-sm shadow-inner" title="Mínimo stock LOCAL por almacén para disparar (0 = ignorar local)" />
+                            </div>
+
+                            <div>
+                               <label className="text-[10px] font-mono text-surface-400 tracking-wider block mb-1 font-bold uppercase">Target Transit</label>
+                               <div className="flex gap-2">
+                                  <input 
+                                     type="number" min="1" max="999" 
+                                     value={targetQtyTransit === -1 || targetQtyTransit === '-1' ? '' : targetQtyTransit} 
+                                     disabled={targetQtyTransit === -1 || targetQtyTransit === '-1'}
+                                     onChange={e=>setTargetQtyTransit(e.target.value ? parseInt(e.target.value) : 1)} 
+                                     onBlur={handleSaveConfig} 
+                                     className="bg-surface-900 border border-surface-700 text-blue-400 w-full p-2 focus:border-blue-500 disabled:opacity-30 disabled:cursor-not-allowed focus:outline-none text-center font-mono text-sm shadow-inner" 
+                                  />
+                                  <label className={`flex items-center justify-center px-3 border cursor-pointer transition-colors ${targetQtyTransit === -1 || targetQtyTransit === '-1' ? 'bg-blue-500/20 border-blue-500 shadow-[0_0_10px_rgba(59,130,246,0.2)]' : 'bg-surface-900 border-surface-700 hover:border-surface-600'}`}>
+                                     <input 
+                                        type="checkbox" 
+                                        className="hidden"
+                                        checked={targetQtyTransit === -1 || targetQtyTransit === '-1'} 
+                                        onChange={async (e) => {
+                                           const val = e.target.checked ? -1 : 1;
+                                           setTargetQtyTransit(val);
+                                           try {
+                                              await updateProduct(product.id, { target_qty_transit: val });
+                                              toast.success("CONFIG SAVED");
+                                           } catch(err) {}
+                                        }}
+                                     />
+                                     <span className={`text-[10px] font-mono font-bold tracking-wider ${targetQtyTransit === -1 || targetQtyTransit === '-1' ? 'text-blue-500' : 'text-surface-500'}`}>MAX</span>
+                                  </label>
+                               </div>
                             </div>
                             <div>
-                               <label className="text-[10px] font-mono text-surface-400 tracking-wider block mb-1 font-bold uppercase">Min Tránsito</label>
-                               <input type="number" min="0" max="999" value={minTransit} onChange={e=>setMinTransit(e.target.value)} onBlur={handleSaveConfig} className="bg-surface-900 border border-surface-700 text-blue-400 w-full p-2 focus:border-blue-500 focus:outline-none text-center font-mono text-sm shadow-inner" title="Mínimo stock en TRÁNSITO por almacén para disparar (0 = ignorar tránsito)" />
-                            </div>
-                            <div>
-                               <label className="text-[10px] font-mono text-surface-400 tracking-wider block mb-1 font-bold uppercase">Post-Compra</label>
-                               <select value={product.post_purchase_action || 'pause'} onChange={async (e) => { await updateProduct(product.id, { post_purchase_action: e.target.value }); toast.success('CONFIG OK'); }} className="bg-surface-900 border border-surface-700 text-blue-400 w-full p-2 focus:border-blue-500 focus:outline-none font-mono text-xs shadow-inner appearance-none cursor-pointer">
-                                  <option value="pause">PAUSAR TRAS ÉXITO</option>
-                                  <option value="loop">LOOP MODE</option>
-                               </select>
+                               <label className="text-[10px] font-mono text-surface-400 tracking-wider block mb-1 font-bold uppercase">Trigger Transit</label>
+                               <input type="number" min="0" max="999" value={minTransit} onChange={e=>setMinTransit(e.target.value)} onBlur={handleSaveConfig} className="bg-surface-900 border border-surface-700 text-blue-300 w-full p-2 focus:border-blue-500 focus:outline-none text-center font-mono text-sm shadow-inner" title="Mínimo stock en TRÁNSITO por almacén para disparar (0 = ignorar tránsito)" />
                             </div>
                          </div>
                       </div>
