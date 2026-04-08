@@ -409,28 +409,23 @@ async def add_to_cart_and_checkout(
         effective_qty = max(target_quantity, 1)
         if effective_qty > 1:
             try:
-                await record_step(f"Ajustando cantidad a {effective_qty} uds mediante inyección rápida...")
-                # Inyección JS para cambiar el input directamente
-                eval_success = await page.evaluate(f"""(qty) => {{
-                    const inputs = document.querySelectorAll('.goods_edit_nem input, .cart-goods__sku__input input, input[type="number"]');
-                    if (inputs.length > 0) {{
-                        const input = inputs[0];
-                        input.value = qty;
-                        input.dispatchEvent(new Event('input', {{ bubbles: true }}));
-                        input.dispatchEvent(new Event('change', {{ bubbles: true }}));
-                        // Simular pulsar Enter
-                        const enterEvent = new KeyboardEvent('keydown', {{ key: 'Enter', code: 'Enter', keyCode: 13, bubbles: true }});
-                        input.dispatchEvent(enterEvent);
-                        return true;
-                    }}
-                    return false;
-                }}""", effective_qty)
+                await record_step(f"Ajustando cantidad a {effective_qty} uds de forma estricta...")
                 
-                if eval_success:
+                # Seleccionar el primer input de cantidad validado, con un timeout maximo de 3 segundos
+                cart_qty_input = page.locator('.goods_edit_nem input[type="number"], .cart-goods__sku__input input').first
+                
+                # Intentar forzar el seteo usando las APIs nativas de playwright para saltar verificaciones inestables
+                if await cart_qty_input.count() > 0:
+                    # Rellenar forzado, saltando comprobaciones (actionability checks) que causan timeouts
+                    await cart_qty_input.fill(str(effective_qty), force=True, timeout=3000)
+                    await page.wait_for_timeout(200) # micropausa para asentar
+                    await cart_qty_input.press("Enter", timeout=1000)
+                    
+                    # Tiempo prudencial para que Vue aplique la multiplicación de precios
+                    await page.wait_for_timeout(800)
                     await record_step(f"Cantidad ajustada a {effective_qty} uds ✓")
-                    await page.wait_for_timeout(1000) # Dejar que Vue procese el input
                 else:
-                    await record_step(f"No se encontró input de cantidad, procediendo con stock unitario.")
+                    await record_step("No se encontró input de cantidad, procediendo con 1 unidad por defecto.")
             except Exception as e:
                 await record_step(f"Aviso ajustando cantidad: {str(e)[:50]}")
 
