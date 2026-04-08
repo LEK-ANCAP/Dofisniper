@@ -233,7 +233,8 @@ async def _run_checkout_background(product_id: int, product_url: str):
             target_quantity=actual_target_qty, 
             email=email, password=password,
             product_id=product_id,
-            pre_routed_wh_name=pre_routed_wh_name
+            pre_routed_wh_name=pre_routed_wh_name,
+            trigger_type=trigger_type
         )
         await browser_manager.close_page(page)
 

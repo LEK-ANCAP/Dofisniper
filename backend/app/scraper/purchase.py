@@ -202,7 +202,8 @@ async def add_to_cart_and_checkout(
     email: str = None,
     password: str = None,
     product_id: int = None,
-    pre_routed_wh_name: str = None
+    pre_routed_wh_name: str = None,
+    trigger_type: str = None
 ):
     result = {"success": False, "message": "", "checkout_url": None}
     
@@ -290,30 +291,44 @@ async def add_to_cart_and_checkout(
             result["message"] = msg
             return result
 
+        # AJUSTE DE CANTIDAD PRE-CARRITO (Optimización)
+        effective_qty = max(target_quantity, 1)
+        if effective_qty > 1:
+            try:
+                await record_step(f"Inyectando {effective_qty} uds previas al carrito...")
+                # Buscar input de producto (suele ser generic input[type='number'] o .el-input__inner)
+                qty_input = page.locator("input.quantity, input[type='number'], .el-input-number__increase, .custom-quantity-input").first
+                if await qty_input.count() > 0:
+                    await qty_input.fill(str(effective_qty), force=True, timeout=2000)
+                    await page.wait_for_timeout(200) # pequeña pausa para que react/vue lo registre
+                    await record_step("Cantidad inyectada con éxito ✓")
+                else:
+                    await record_step("No se encontró input de cantidad pre-carrito, procesando default")
+            except Exception as e:
+                await record_step(f"Aviso cantidad pre-carrito: {str(e)[:40]}")
+
         await record_step("Click en 'Añadir al carrito'...")
         await add_btn.click()
         logger.info("🖱️ Click en 'Añadir al carrito'")
         
-        # Modal de "En tránsito"
-        try:
-            await record_step("Esperando posible confirmación de tránsito...")
-            confirm_btn = await page.wait_for_selector(
-                "button:has-text('Confirmar'), button:has-text('Confirm'), .el-message-box__btns .el-button--primary", 
-                timeout=3000, state="visible"
-            )
-            if confirm_btn:
-                await confirm_btn.click()
-                await record_step("Popup de tránsito confirmado")
-                await page.wait_for_timeout(2000)
-        except PlaywrightTimeout:
-            pass
+        # Modal de "En tránsito" (Omitir si es un ataque comprobado como puramente Local)
+        if trigger_type != 'local':
+            try:
+                await record_step("Esperando posible confirmación de tránsito...")
+                confirm_btn = await page.wait_for_selector(
+                    "button:has-text('Confirmar'), button:has-text('Confirm'), .el-message-box__btns .el-button--primary", 
+                    timeout=3000, state="visible"
+                )
+                if confirm_btn:
+                    await confirm_btn.click()
+                    await record_step("Popup de tránsito confirmado")
+            except PlaywrightTimeout:
+                pass
+        else:
+            await record_step("Ataque puramente local confirmado: ignorando modal de tránsito.")
 
-        # Verificar éxito
-        try:
-            await page.wait_for_selector(CHECKOUT_SELECTORS["cart_success"], timeout=3000, state="attached")
-            await record_step("Producto añadido al carrito ✓")
-        except PlaywrightTimeout:
-            await record_step("Sin mensaje de éxito visual — continuando")
+        # Verificar éxito (OMITIDO POR OPTIMIZACIÓN - Reduce latencia en 3 segundos)
+        await record_step("Validación visual de éxito (Toast) omitida por velocidad ✓")
         
         if tracker:
             tracker.mark_step_done("add_cart")
@@ -405,29 +420,7 @@ async def add_to_cart_and_checkout(
         
         await ensure_products_selected()
 
-        # Ajustar cantidad (forzar mínimo 1)
-        effective_qty = max(target_quantity, 1)
-        if effective_qty > 1:
-            try:
-                await record_step(f"Ajustando cantidad a {effective_qty} uds de forma estricta...")
-                
-                # Seleccionar el primer input de cantidad validado, con un timeout maximo de 3 segundos
-                cart_qty_input = page.locator('.goods_edit_nem input[type="number"], .cart-goods__sku__input input').first
-                
-                # Intentar forzar el seteo usando las APIs nativas de playwright para saltar verificaciones inestables
-                if await cart_qty_input.count() > 0:
-                    # Rellenar forzado, saltando comprobaciones (actionability checks) que causan timeouts
-                    await cart_qty_input.fill(str(effective_qty), force=True, timeout=3000)
-                    await page.wait_for_timeout(200) # micropausa para asentar
-                    await cart_qty_input.press("Enter", timeout=1000)
-                    
-                    # Tiempo prudencial para que Vue aplique la multiplicación de precios
-                    await page.wait_for_timeout(800)
-                    await record_step(f"Cantidad ajustada a {effective_qty} uds ✓")
-                else:
-                    await record_step("No se encontró input de cantidad, procediendo con 1 unidad por defecto.")
-            except Exception as e:
-                await record_step(f"Aviso ajustando cantidad: {str(e)[:50]}")
+        # [REMOVIDO: Ajuste de cantidad en el Carrito para optimizar tiempo. Se hace en el Paso 3 ahora]
 
         # Click en PAGAR
         await record_step("Disparando comando de PAGAR (Checkout)...")

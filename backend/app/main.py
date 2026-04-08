@@ -155,7 +155,8 @@ async def persistent_checkout_loop(product_id: int):
                     target_quantity=actual_target_qty,
                     email=email, password=password,
                     product_id=product.id,
-                    pre_routed_wh_name=pre_routed_wh_name
+                    pre_routed_wh_name=pre_routed_wh_name,
+                    trigger_type=trigger_type
                 )
                 
                 # Cerramos la página post-intento (sea exitoso o no, es mejor reciclarla para limpiar DOM)
