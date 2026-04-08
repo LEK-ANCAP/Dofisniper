@@ -79,6 +79,7 @@ function ProductItem({ product, i, onDelete, onToggle, onCheckout, onOpenEdit })
   const [targetQtyTransit, setTargetQtyTransit] = useState(product.target_qty_transit ?? 1);
   const [minLocal, setMinLocal] = useState(product.min_local_to_trigger ?? 1);
   const [minTransit, setMinTransit] = useState(product.min_transit_to_trigger ?? 0);
+  const [postPurchaseAction, setPostPurchaseAction] = useState(product.post_purchase_action ?? 'pause');
   
   const [logOutput, setLogOutput] = useState('');
   const [isExecuting, setIsExecuting] = useState(product.status === 'purchasing');
@@ -163,7 +164,8 @@ function ProductItem({ product, i, onDelete, onToggle, onCheckout, onOpenEdit })
            target_qty_local: targetQtyLocal === -1 || targetQtyLocal === '-1' ? -1 : parseInt(targetQtyLocal) || 1,
            target_qty_transit: targetQtyTransit === -1 || targetQtyTransit === '-1' ? -1 : parseInt(targetQtyTransit) || 1,
            min_local_to_trigger: parseInt(minLocal) || 0,
-           min_transit_to_trigger: parseInt(minTransit) || 0
+           min_transit_to_trigger: parseInt(minTransit) || 0,
+           post_purchase_action: postPurchaseAction
         });
         toast.success("CONFIG_SAVED", { style: { background: '#1e293b', color: '#38bdf8', border: '1px solid #0c4a6e' }});
      } catch(e) {}
@@ -409,24 +411,60 @@ function ProductItem({ product, i, onDelete, onToggle, onCheckout, onOpenEdit })
                          </div>
                       </summary>
                       <div className="bg-surface-800 border border-t-0 border-amber-500/30 p-4 shadow-inner relative overflow-hidden">
-                         <label className={`w-full flex items-center justify-between p-3 mb-4 cursor-pointer border transition-all ${product.auto_buy ? 'bg-amber-500/10 border-amber-500/50 shadow-[0_0_15px_rgba(255,176,0,0.1)] text-amber-500 font-bold' : 'bg-surface-900 border-surface-700 text-surface-500 hover:border-surface-600'}`}>
-                            <span className="text-[10px] font-mono uppercase tracking-widest flex items-center gap-2"><Crosshair size={14}/> AUTO-ENGAGE ON RECON</span>
-                            <input type="checkbox" className="hidden" checked={product.auto_buy} onChange={async ()=>{
-                                const newState = !product.auto_buy;
-                                try {
-                                    await updateProduct(product.id, { auto_buy: newState });
-                                    product.auto_buy = newState;
-                                    await new Promise(r => setTimeout(r, 300));
-                                    onToggle(product.id, { preventBackend: true });
-                                    toast.success(`AUTO-ENGAGE ${newState ? 'ONLINE' : 'OFFLINE'}`, { icon: newState ? '🎯' : '⏸️', style: { background: '#1e293b', color: newState?'#ffb000':'#94a3b8', border: newState?'1px solid #ffb000':'1px solid #334155' }});
-                                } catch(err) {
-                                    toast.error(`Error: ${err.message}`, { style: { background: '#1e293b', color: '#ff003c', border: '1px solid #ff003c' }});
-                                }
-                            }} />
-                            <div className={`w-10 h-5 border flex items-center px-1 transition-colors ${product.auto_buy ? 'border-amber-500 bg-amber-500/20 justify-end' : 'border-surface-600 bg-surface-900 justify-start'}`}>
-                               <div className={`w-4 h-4 shadow-sm ${product.auto_buy ? 'bg-amber-500 shadow-[0_0_10px_rgba(255,176,0,0.8)]' : 'bg-surface-600'}`} />
+                         <div className="flex flex-col sm:flex-row items-center gap-6 mb-4">
+                            {/* Analog Watch Dial Toggle */}
+                            <div 
+                               className="relative cursor-pointer group select-none"
+                               onClick={async () => {
+                                  const newState = !product.auto_buy;
+                                  try {
+                                     await updateProduct(product.id, { auto_buy: newState });
+                                     product.auto_buy = newState;
+                                     await new Promise(r => setTimeout(r, 300));
+                                     onToggle(product.id, { preventBackend: true });
+                                     toast.success(`AUTO-ENGAGE ${newState ? 'ONLINE' : 'OFFLINE'}`, { icon: newState ? '🎯' : '⏸️', style: { background: '#1e293b', color: newState?'#ffb000':'#94a3b8', border: newState?'1px solid #ffb000':'1px solid #334155' }});
+                                  } catch(err) {
+                                     toast.error(`Error: ${err.message}`, { style: { background: '#1e293b', color: '#ff003c', border: '1px solid #ff003c' }});
+                                  }
+                               }}
+                            >
+                               {/* Outer bezel ring */}
+                               <div className={`w-20 h-20 rounded-full border-2 flex items-center justify-center transition-all duration-500 ${product.auto_buy ? 'border-amber-500/80 shadow-[0_0_25px_rgba(255,176,0,0.3)]' : 'border-surface-600 shadow-none'}`}>
+                                  {/* SVG Arc + Ticks */}
+                                  <svg viewBox="0 0 80 80" className="absolute w-20 h-20">
+                                     {/* Tick marks around the bezel */}
+                                     {[...Array(12)].map((_, i) => {
+                                        const angle = (i * 30) * Math.PI / 180;
+                                        const x1 = 40 + 34 * Math.cos(angle);
+                                        const y1 = 40 + 34 * Math.sin(angle);
+                                        const x2 = 40 + 38 * Math.cos(angle);
+                                        const y2 = 40 + 38 * Math.sin(angle);
+                                        return <line key={i} x1={x1} y1={y1} x2={x2} y2={y2} stroke={product.auto_buy ? '#ffb000' : '#475569'} strokeWidth="1.5" strokeLinecap="round" className="transition-colors duration-500" />;
+                                     })}
+                                     {/* Animated arc indicator */}
+                                     <circle cx="40" cy="40" r="30" fill="none" stroke={product.auto_buy ? '#ffb000' : '#334155'} strokeWidth="2" strokeDasharray={`${product.auto_buy ? 188 : 0} 188`} strokeLinecap="round" className="transition-all duration-700 ease-in-out" transform="rotate(-90 40 40)" opacity={product.auto_buy ? 1 : 0.3} />
+                                  </svg>
+                                  {/* Inner dial face */}
+                                  <div className={`w-14 h-14 rounded-full border flex flex-col items-center justify-center transition-all duration-500 ${product.auto_buy ? 'bg-amber-500/15 border-amber-500/40' : 'bg-surface-900 border-surface-700'}`}>
+                                     {/* Crown needle */}
+                                     <div className={`w-0.5 h-4 rounded-full mb-0.5 transition-all duration-500 origin-bottom ${product.auto_buy ? 'bg-amber-500 shadow-[0_0_6px_rgba(255,176,0,0.8)] rotate-0' : 'bg-surface-600 -rotate-90'}`} />
+                                     <Crosshair size={14} className={`transition-colors duration-500 ${product.auto_buy ? 'text-amber-500' : 'text-surface-600'}`} />
+                                  </div>
+                               </div>
+                               {/* Pulse ring when active */}
+                               {product.auto_buy && <div className="absolute inset-0 rounded-full border border-amber-500/30 animate-ping" style={{ animationDuration: '2s' }} />}
                             </div>
-                         </label>
+
+                            {/* Status text panel */}
+                            <div className="flex-1 text-center sm:text-left">
+                               <div className={`text-xs font-mono tracking-[0.25em] uppercase font-bold transition-colors duration-300 ${product.auto_buy ? 'text-amber-500' : 'text-surface-500'}`}>
+                                  {product.auto_buy ? '● ARMED & SCANNING' : '○ STANDBY'}
+                               </div>
+                               <div className="text-[9px] font-mono text-surface-500 mt-1 tracking-wider">
+                                  {product.auto_buy ? 'El sistema comprará automáticamente al detectar stock' : 'Click en el dial para armar el auto-engage'}
+                               </div>
+                            </div>
+                         </div>
                          <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-4 gap-3">
                             <div>
                                <label className="text-[10px] font-mono text-surface-400 tracking-wider block mb-1 font-bold uppercase">Target Local</label>

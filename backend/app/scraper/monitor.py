@@ -322,15 +322,26 @@ def find_triggering_warehouse(
     
     Prioridad: local > tránsito. Dentro de cada tipo, Camagüey primero.
     """
-    if not stock_result or not stock_result.warehouses:
+    if not stock_result:
         return None
-    
+        
     candidates = []
-    for wh in stock_result.warehouses:
-        if min_local > 0 and wh.warehouse_stock >= min_local:
-            candidates.append((wh, 'local', wh.warehouse_stock))
-        if min_transit > 0 and wh.transit_stock >= min_transit:
-            candidates.append((wh, 'transit', wh.transit_stock))
+    
+    # Si tenemos desglose por almacén, verificamos individualmente
+    if stock_result.warehouses:
+        for wh in stock_result.warehouses:
+            if min_local > 0 and wh.warehouse_stock >= min_local:
+                candidates.append((wh, 'local', wh.warehouse_stock))
+            if min_transit > 0 and wh.transit_stock >= min_transit:
+                candidates.append((wh, 'transit', wh.transit_stock))
+    else:
+        # Fallback: Cuando DofiMall solo devuelve stock total (sin desglose)
+        if min_local > 0 and stock_result.warehouse_stock >= min_local:
+            wh_mock = WarehouseInfo(name="Global/Desconocido", warehouse_stock=stock_result.warehouse_stock, transit_stock=stock_result.transit_stock)
+            candidates.append((wh_mock, 'local', stock_result.warehouse_stock))
+        elif min_transit > 0 and stock_result.transit_stock >= min_transit:
+            wh_mock = WarehouseInfo(name="Global/Desconocido", warehouse_stock=stock_result.warehouse_stock, transit_stock=stock_result.transit_stock)
+            candidates.append((wh_mock, 'transit', stock_result.transit_stock))
     
     if not candidates:
         return None

@@ -62,6 +62,7 @@ class Product(Base):
     min_transit_to_trigger = Column(Integer, default=0)  # Mínimo stock TRÁNSITO por almacén para disparar (0 = ignorar)
     target_qty_transit = Column(Integer, default=0)      # Cantidad que intentar comprar del tránsito
     
+    post_purchase_action = Column(String(20), default="pause") # Accion post-compra (pause, loop)
     auto_buy = Column(Boolean, default=False)          # Compra automática independiente de monitorización
 
     created_at = Column(DateTime, server_default=func.now())

@@ -42,6 +42,7 @@ class ProductUpdate(BaseModel):
     target_qty_local: Optional[int] = None
     min_transit_to_trigger: Optional[int] = None
     target_qty_transit: Optional[int] = None
+    post_purchase_action: Optional[str] = None
     auto_buy: Optional[bool] = None
     category_id: Optional[int] = None
 
@@ -71,6 +72,7 @@ class ProductResponse(BaseModel):
     min_transit_to_trigger: int = 0
     target_qty_transit: int = 0
     
+    post_purchase_action: str = "pause"
     auto_buy: bool = False
     created_at: datetime
     updated_at: datetime
