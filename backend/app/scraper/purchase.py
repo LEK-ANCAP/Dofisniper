@@ -214,11 +214,12 @@ async def add_to_cart_and_checkout(
         logger.info(f"👉 Paso: {msg}")
         if tracker:
             tracker.update_detail(msg)
-        try:
-            msg_bytes = await page.screenshot(type="jpeg", quality=40)
-            live_view_manager.update_frame(product_id, msg_bytes)
-        except Exception:
-            pass
+        # ⚡ OPTIMIZACIÓN: Las capturas de pantalla están deshabilitadas para ahorrar ~100ms por paso
+        # try:
+        #     msg_bytes = await page.screenshot(type="jpeg", quality=40)
+        #     live_view_manager.update_frame(product_id, msg_bytes)
+        # except Exception:
+        #     pass
 
     async def retry_selector(selector, timeout_initial=15000, min_timeout=3000, max_retries=3, state="visible"):
         """Intenta encontrar un selector reduciéndole el timeout en cada reintento."""
