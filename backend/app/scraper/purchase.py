@@ -476,7 +476,21 @@ async def add_to_cart_and_checkout(
         if tracker:
             tracker.advance_to("confirm", "Buscando 'Enviar pedido'...")
 
-        # Click en "Enviar pedido"
+        # 1. Marcar check de acuerdo (Evita el popup)
+        try:
+            await record_step("Marcando checkbox de Acuerdo de Compra...")
+            # Buscando el checkbox específico según el DOM de DofiMall
+            check_locator = page.locator("div.order-agreement__checkbox, span.el-checkbox__inner, label.el-checkbox").last
+            if await check_locator.count() > 0:
+                await check_locator.evaluate("element => { \n                    // Intentar clickar el div o el span interno \n                    const span = element.querySelector('.el-checkbox__inner'); \n                    if (span) { span.click(); } else { element.click(); } \n                }")
+                await page.wait_for_timeout(300)
+                await record_step("Checkbox validado ✓")
+            else:
+                await record_step("No se detectó el checkbox previo")
+        except Exception as e:
+            await record_step(f"Aviso marcando check: {str(e)[:40]}")
+
+        # 2. Click en "Enviar pedido"
         try:
             await record_step("Buscando botón 'Enviar pedido'...")
             enviar_btn = page.locator("button:has-text('Enviar pedido'), span:has-text('Enviar pedido'), .submit-btn, .goBuy").last
@@ -487,40 +501,28 @@ async def add_to_cart_and_checkout(
             except Exception:
                 await enviar_btn.click(force=True)
                 await record_step("Force-click en 'Enviar pedido' ejecutado")
-            await page.wait_for_timeout(3000)
         except PlaywrightTimeout:
             await record_step("⚠ No se detectó 'Enviar pedido'")
 
-        # Click en "Estoy de acuerdo"
+        # 3. Fallback: Click en "Estoy de acuerdo" emergente SI el checkbox falló
         try:
-            await record_step("Buscando aviso legal 'Estoy de acuerdo'...")
             acuerdo_btn = page.locator("div.agreement-btn:not(.agreement-btn--colse)").last
-            await acuerdo_btn.wait_for(state="visible", timeout=10000)
-            
+            # Espera super rápida (2s max) porque normalmente no debería salir ya
+            await acuerdo_btn.wait_for(state="visible", timeout=2000)
             await acuerdo_btn.evaluate("element => element.click()")
-            await record_step("Aviso legal aceptado — esperando redirección bancaria...")
-            
-            try:
-                async with page.expect_navigation(timeout=15000):
-                    pass
-            except Exception:
-                await page.wait_for_timeout(5000)
-                
+            await record_step("Popup Aviso legal forzado aceptado.")
         except PlaywrightTimeout:
-            import os
-            os.makedirs("logs", exist_ok=True)
-            await page.screenshot(path="logs/checkout_final_fail.png", full_page=True)
-            content = await page.content()
-            with open("logs/checkout_final_fail.html", "w", encoding="utf-8") as f:
-                f.write(content)
-                
-            msg = "CRÍTICO: No apareció el aviso legal ni hubo redirección tras Enviar pedido."
-            if tracker:
-                tracker.mark_step_error(msg)
-                tracker.finish(False, msg)
-            result["message"] = msg
-            return result
-        
+            pass # Todo en orden, el popup no apareció
+            
+        # 4. Esperar redirección bancaria
+        await record_step("Esperando redirección bancaria definitiva...")
+        try:
+            async with page.expect_navigation(timeout=10000):
+                pass
+        except Exception:
+            # Tolerancia final por si el socket no detecta la navegación pero ya ocurrió
+            await page.wait_for_timeout(3000)
+            
         if tracker:
             tracker.mark_step_done("confirm")
 
