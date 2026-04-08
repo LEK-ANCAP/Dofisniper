@@ -254,31 +254,18 @@ async def add_to_cart_and_checkout(
             tracker.mark_step_done("routing")
 
         # ══════════════════════════════════════════════════════════
-        # PASO 2: NAVEGACIÓN + LOGIN BYPASS
+        # PASO 2: NAVEGACIÓN (Sin Login, ya se asume logueado por el worker global)
         # ══════════════════════════════════════════════════════════
         if tracker:
-            tracker.advance_to("navigate", "Navegando a la URL del producto...")
+            tracker.advance_to("navigate", "Verificando página del producto...")
         
-        await record_step("Cargando página del producto...")
+        await record_step("Asegurando página del producto...")
         if page.url != product_url:
             await page.goto(product_url, wait_until="domcontentloaded", timeout=30000)
-            await page.wait_for_timeout(2000)
+            await page.wait_for_timeout(1000)
             
-        # Login bypass
-        await record_step("Verificando sesión activa...")
-        login_result = await execute_login_bypass(page, email, password, record_step)
-        if not login_result.get("success") and "Ya estaba logueado" not in login_result.get("message", ""):
-            if tracker:
-                tracker.mark_step_error(f"Login falló: {login_result.get('message', '')}")
-                tracker.finish(False, login_result.get("message", "Login falló"))
-            return login_result
-            
-        if page.url != product_url:
-            await record_step("Renavegando al producto tras login...")
-            await page.goto(product_url, wait_until="domcontentloaded")
-            await page.wait_for_timeout(2000)
+        await record_step("Página del producto lista ✓")
         
-        await record_step("Página del producto cargada correctamente")
         if tracker:
             tracker.mark_step_done("navigate")
 
@@ -372,23 +359,16 @@ async def add_to_cart_and_checkout(
                 selected_count = int(match.group(1)) if match else -1
                 
                 if selected_count == 0:
-                    await record_step(f"0 productos seleccionados — clickeando 'Seleccionar todo'...")
-                    # Click en el primer checkbox visible (suele ser "Seleccionar todo")
-                    select_all = page.locator(".cart-checkbox, .el-checkbox").first
-                    try:
-                        await select_all.click(force=True, timeout=2000)
-                        await page.wait_for_timeout(800)
-                        await record_step("Click en 'Seleccionar todo' ejecutado ✓")
-                    except Exception:
-                        # Fallback: click en todos los checkboxes individuales
-                        cbs = await page.locator(".cart-checkbox, .el-checkbox").all()
-                        for cb in cbs:
-                            try:
-                                await cb.click(force=True, timeout=500)
-                                await page.wait_for_timeout(300)
-                            except Exception:
-                                pass
-                        await record_step(f"Forzados {len(cbs)} checkboxes individuales")
+                    await record_step(f"0 productos seleccionados — forzando clicks vía JS...")
+                    
+                    # Forzar clicks agresivos vía JavaScript puro para evitar fallos de Playwright/Vue
+                    await page.evaluate("""() => {
+                        const checkboxes = document.querySelectorAll('.cart-checkbox input, .el-checkbox input, .cart-checkbox, .el-checkbox');
+                        checkboxes.forEach(cb => cb.click());
+                    }""")
+                    await page.wait_for_timeout(800)
+                    
+                    await record_step("Clicks forzados en todos los checkboxes ✓")
                     return False  # Estaban en 0, tuvimos que forzar
                 elif selected_count > 0:
                     await record_step(f"{selected_count} producto(s) seleccionado(s) ✓")

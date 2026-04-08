@@ -68,9 +68,10 @@ async def persistent_checkout_loop(product_id: int):
     Mantene un bucle continuo bloqueado al producto hasta que logre la compra o deje de haber stock.
     Esto debe invocarse como un Task asíncrono para que no bloquee nada más.
     """
-    logger.info(f"⚡ [HILO CHECKOUT {product_id}] Inicializando ataque continuo...")
-    while True:
-        try:
+    logger.info(f"⚡ [HILO CHECKOUT {product_id}] Inicializando ataque continuo con pre-calentamiento de sesión...")
+    page = None
+    try:
+        while True:
             async with async_session() as db:
                 product = await db.execute(select(Product).where(Product.id == product_id))
                 product = product.scalar_one_or_none()
@@ -78,36 +79,48 @@ async def persistent_checkout_loop(product_id: int):
                     logger.warning(f"🛑 [HILO CHECKOUT {product_id}] Abortado: Inactivo o AutoBuy deshabilitado.")
                     break
                 
-                # Check for stock right before attacking
-                stock_result = await check_stock(None, product.url)
-                if not stock_result.is_available or stock_result.total_available < product.min_stock_to_trigger:
-                    logger.warning(f"🚫 [HILO CHECKOUT {product_id}] Stock agotado ({stock_result.total_available}U). Abortando auto-compra y regresando a Monitoreo.")
-                    product.status = ProductStatus.IN_STOCK if stock_result.is_available else ProductStatus.MONITORING
-                    await db.commit()
-                    break
-
                 settings_db = await db.execute(select(AppSettings).limit(1))
                 sys_settings = settings_db.scalar_one_or_none()
                 email = sys_settings.dofimall_email if sys_settings else ""
                 password = sys_settings.dofimall_password if sys_settings else ""
 
                 actual_target_qty = product.target_quantity
-                if actual_target_qty == -1:
-                    actual_target_qty = stock_result.total_available
 
                 # Auto-start browser if not running (removes manual dependency)
                 if not browser_manager.is_running:
-                    logger.warning(f"🌐 [HILO CHECKOUT {product_id}] Browser no activo — Iniciando automáticamente...")
                     try:
                         await browser_manager.start()
-                        logger.info(f"✅ [HILO CHECKOUT {product_id}] Browser iniciado con éxito.")
                     except Exception as browser_err:
                         logger.error(f"❌ [HILO CHECKOUT {product_id}] No se pudo iniciar el browser: {browser_err}")
-                        await _log_action(db, product.id, product.name, "auto_purchase_failed", LogLevel.ERROR, f"Browser no pudo iniciarse: {browser_err}")
-                        await asyncio.sleep(10)
+                        await asyncio.sleep(5)
                         continue
 
-                page = await browser_manager.get_page()
+                # Preparar la página (Sesión Permanente)
+                if page is None or page.is_closed():
+                    try:
+                        page = await browser_manager.get_page()
+                        logger.info(f"🌐 [HILO CHECKOUT {product_id}] Sesión vacía. Cargando url base de producto...")
+                        await page.goto(product.url, wait_until="domcontentloaded")
+                        logger.success(f"🌐 [HILO CHECKOUT {product_id}] Sesión lista y apostada en el producto (STANDBY).")
+                    except Exception as prep_err:
+                        logger.warning(f"⚠️ [HILO CHECKOUT {product_id}] Error preparando página: {prep_err}")
+                        await asyncio.sleep(2)
+                        continue
+
+                # Check for stock right before attacking
+                stock_result = await check_stock(None, product.url)
+                if not stock_result.is_available or stock_result.total_available < product.min_stock_to_trigger:
+                    # Espera super rápida (1 seg) manteniéndose en guardia sin saturar el log
+                    await asyncio.sleep(1)
+                    continue
+
+                if actual_target_qty == -1:
+                    actual_target_qty = stock_result.total_available
+
+                # 🚀 ¡STOCK DETECTADO! 
+                logger.warning(f"🚨 [HILO CHECKOUT {product_id}] ¡STOCK DESCRUBIERTO! ({stock_result.total_available}U). Arrancando secuencia de ataque inmediato...")
+                product.status = ProductStatus.PURCHASING
+                await db.commit()
                 
                 # ENRUTAMIENTO PRE-CALCULADO DESDE EL MONITOREO
                 from app.scraper.monitor import get_best_warehouse
@@ -135,7 +148,9 @@ async def persistent_checkout_loop(product_id: int):
                     pre_routed_wh_name=pre_routed_wh_name
                 )
                 
+                # Cerramos la página post-intento (sea exitoso o no, es mejor reciclarla para limpiar DOM)
                 await browser_manager.close_page(page)
+                page = None
 
                 if checkout_result.get("success"):
                     await _log_action(db, product.id, product.name, "auto_purchase", LogLevel.SUCCESS, "Auto-compra confirmada.")
@@ -144,10 +159,9 @@ async def persistent_checkout_loop(product_id: int):
                         checkout_url=checkout_result.get("checkout_url"), is_purchase=True, quantity=actual_target_qty
                     )
                     
-                    product.status = ProductStatus.RESERVED
-                    
-                    if product.post_purchase_action == "loop" or product.post_purchase_action == "restart":
+                    if getattr(product, "post_purchase_action", "pause") == "loop":
                         logger.success(f"♻️ [HILO CHECKOUT {product_id}] Éxito. MODO LOOP ACIVADO - Reingresando en 30s...")
+                        product.status = ProductStatus.MONITORING
                         await db.commit()
                         await asyncio.sleep(30) # Pausa de seguridad antes de volver a atacar
                         continue
@@ -160,16 +174,20 @@ async def persistent_checkout_loop(product_id: int):
                         break
                 else:
                     await _log_action(db, product.id, product.name, "auto_purchase_failed", LogLevel.ERROR, "Reintentando ataque...")
-                    logger.warning(f"⚠️ [HILO CHECKOUT {product_id}] Falló intento. Reanudando loop en 1s...")
-                    await asyncio.sleep(1) # Mínima pausa antes de reintentar
+                    logger.warning(f"⚠️ [HILO CHECKOUT {product_id}] Falló intento. Reanudando loop en {sys_settings.purchase_interval_seconds}s...")
+                    product.status = ProductStatus.MONITORING
+                    await db.commit()
+                    await asyncio.sleep(sys_settings.purchase_interval_seconds) # Pausa dinámica antes de reintentar
                     
-        except Exception as e:
-            logger.error(f"💥 [HILO CHECKOUT {product_id}] Excepción en loop agresivo: {e}")
-            await asyncio.sleep(1)
+    except Exception as e:
+        logger.error(f"💥 [HILO CHECKOUT {product_id}] Excepción en loop agresivo: {e}")
+    finally:
+        # Cleanup
+        if page and not page.is_closed():
+            await browser_manager.close_page(page)
             
-    # Cleanup task registry
-    if product_id in active_checkout_tasks:
-        del active_checkout_tasks[product_id]
+        if product_id in active_checkout_tasks:
+            del active_checkout_tasks[product_id]
 
 
 async def process_single_product(product_id: int):

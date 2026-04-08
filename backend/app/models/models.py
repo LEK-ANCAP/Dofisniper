@@ -127,6 +127,7 @@ class AppSettings(Base):
     dofimall_password = Column(String(255), nullable=True)
     keep_alive_enabled = Column(Boolean, default=False)
     scan_interval_seconds = Column(Integer, default=3)
+    purchase_interval_seconds = Column(Integer, default=1)
     updated_at = Column(DateTime, server_default=func.now(), onupdate=func.now())
 
 

@@ -11,6 +11,7 @@ export default function ConfigPanel() {
   const [password, setPassword] = useState('');
   const [keepAliveEnabled, setKeepAliveEnabled] = useState(false);
   const [scanInterval, setScanInterval] = useState(10);
+  const [purchaseInterval, setPurchaseInterval] = useState(1);
   const [sessionStatus, setSessionStatus] = useState({ active: false, checking: true });
 
   // Categorías
@@ -35,6 +36,7 @@ export default function ConfigPanel() {
       setPassword(settingsData.dofimall_password || '');
       setKeepAliveEnabled(settingsData.keep_alive_enabled || false);
       setScanInterval(settingsData.scan_interval_seconds || 10);
+      setPurchaseInterval(settingsData.purchase_interval_seconds || 1);
       setCategories(cats);
       
       setSessionStatus({ active: sessStat.active, checking: false });
@@ -93,6 +95,21 @@ export default function ConfigPanel() {
       toast.success('Velocidad de Escaneo Guardada', { icon: '⏱️' });
     } catch(e) {
       toast.error('Error al guardar velocidad');
+    }
+  };
+
+  const handlePurchaseIntervalChange = async (e) => {
+    let val = parseInt(e.target.value);
+    if (isNaN(val) || val < 1) val = 1;
+    setPurchaseInterval(val);
+  };
+  
+  const savePurchaseInterval = async () => {
+    try {
+      await updateSettings({ purchase_interval_seconds: purchaseInterval });
+      toast.success('Frecuencia de Compra Guardada', { icon: '⚡' });
+    } catch(e) {
+      toast.error('Error al guardar frecuencia');
     }
   };
 
@@ -354,6 +371,44 @@ export default function ConfigPanel() {
               <button
                 onClick={saveScanInterval}
                 className="ml-2 px-4 py-2 border border-cyan-500/30 bg-cyan-500/10 hover:bg-cyan-500/20 text-cyan-400 font-bold text-[10px] tracking-widest uppercase transition-colors whitespace-nowrap"
+              >
+                 APLICAR
+              </button>
+           </div>
+        </div>
+
+        {/* Frecuencia de Compra */}
+        <div className="flex flex-col p-4 bg-surface-800 border border-surface-700 relative overflow-hidden">
+           <div className="absolute top-0 left-0 w-1 h-full bg-yellow-500 opacity-50"></div>
+           <div className="flex flex-col mb-2 ml-2">
+              <div className="flex items-start gap-4 mb-4">
+                <div className="p-3 border border-yellow-500/30 bg-yellow-500/10 text-yellow-400">
+                  <Activity size={18} />
+                </div>
+                <div>
+                  <h3 className="font-bold text-white text-[11px] tracking-widest uppercase flex items-center gap-2">
+                     Frecuencia de Intento de Compra
+                  </h3>
+                  <p className="text-surface-400 text-[11px] mt-1 max-w-lg font-mono">
+                    Controla los segundos de espera ("cooldown") entre reintentos del loop agresivo si un click falla.
+                  </p>
+                </div>
+              </div>
+           </div>
+           
+           <div className="flex items-center gap-4 ml-14">
+              <input 
+                type="range" 
+                min="1" 
+                max="10" 
+                value={purchaseInterval} 
+                onChange={handlePurchaseIntervalChange} 
+                className="w-full h-1 bg-surface-700 appearance-none cursor-pointer accent-yellow-500"
+              />
+              <span className="text-yellow-400 font-mono font-bold w-16 text-right whitespace-nowrap">{purchaseInterval} seg</span>
+              <button
+                onClick={savePurchaseInterval}
+                className="ml-2 px-4 py-2 border border-yellow-500/30 bg-yellow-500/10 hover:bg-yellow-500/20 text-yellow-400 font-bold text-[10px] tracking-widest uppercase transition-colors whitespace-nowrap"
               >
                  APLICAR
               </button>

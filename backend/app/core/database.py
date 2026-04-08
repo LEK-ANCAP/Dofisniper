@@ -21,7 +21,12 @@ async def init_db():
             await conn.execute(text("ALTER TABLE app_settings ADD COLUMN scan_interval_seconds INTEGER DEFAULT 3"))
         except Exception:
             pass
-        
+            
+        try:
+            await conn.execute(text("ALTER TABLE app_settings ADD COLUMN purchase_interval_seconds INTEGER DEFAULT 1"))
+        except Exception:
+            pass
+
         try:
             await conn.execute(text("ALTER TABLE products ADD COLUMN post_purchase_action VARCHAR(20) DEFAULT 'pause'"))
         except Exception:

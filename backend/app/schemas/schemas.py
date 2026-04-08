@@ -117,6 +117,7 @@ class AppSettingsSchema(BaseModel):
     dofimall_password: Optional[str] = None
     keep_alive_enabled: Optional[bool] = False
     scan_interval_seconds: int = 3
+    purchase_interval_seconds: int = 1
     
     class Config:
         from_attributes = True
@@ -126,6 +127,7 @@ class AppSettingsUpdate(BaseModel):
     dofimall_password: Optional[str] = None
     keep_alive_enabled: Optional[bool] = None
     scan_interval_seconds: Optional[int] = None
+    purchase_interval_seconds: Optional[int] = None
 
 
 # --- Authentication ---

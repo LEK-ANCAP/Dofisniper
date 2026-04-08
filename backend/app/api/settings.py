@@ -55,6 +55,9 @@ async def update_settings(settings_update: AppSettingsUpdate, db: AsyncSession =
                         scheduler.reschedule_job(job.id, trigger='interval', seconds=new_interval)
             except Exception:
                 pass  # scheduler might not be accessible in some contexts
+                
+    if settings_update.purchase_interval_seconds is not None:
+        settings.purchase_interval_seconds = settings_update.purchase_interval_seconds
         
     await db.commit()
     await db.refresh(settings)
