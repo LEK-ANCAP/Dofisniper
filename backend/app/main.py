@@ -33,7 +33,7 @@ from app.api.logs import router as logs_router
 from app.api.settings import router as settings_router
 from app.api.analytics import router as analytics_router
 from app.api.categories import router as categories_router
-from app.scraper.monitor import check_stock
+from app.scraper.monitor import check_stock, find_triggering_warehouse
 from pydantic import BaseModel
 from app.notifications.email_notif import send_email_notification
 from app.notifications.whatsapp import send_whatsapp_notification
@@ -107,18 +107,23 @@ async def persistent_checkout_loop(product_id: int):
                         await asyncio.sleep(2)
                         continue
 
-                # Check for stock right before attacking
+                # Check for stock right before attacking (POR ALMACÉN, no total)
                 stock_result = await check_stock(None, product.url)
-                if not stock_result.is_available or stock_result.total_available < product.min_stock_to_trigger:
+                trigger_match = find_triggering_warehouse(
+                    stock_result, product.min_local_to_trigger, product.min_transit_to_trigger
+                )
+                if not stock_result.is_available or trigger_match is None:
                     # Espera super rápida (1 seg) manteniéndose en guardia sin saturar el log
                     await asyncio.sleep(1)
                     continue
 
+                trigger_wh, trigger_type, trigger_qty = trigger_match
                 if actual_target_qty == -1:
-                    actual_target_qty = stock_result.total_available
+                    actual_target_qty = trigger_qty
+                logger.info(f"🎯 [HILO CHECKOUT {product_id}] Trigger por {trigger_wh.name} ({trigger_type}: {trigger_qty}U)")
 
                 # 🚀 ¡STOCK DETECTADO! 
-                logger.warning(f"🚨 [HILO CHECKOUT {product_id}] ¡STOCK DESCRUBIERTO! ({stock_result.total_available}U). Arrancando secuencia de ataque inmediato...")
+                logger.warning(f"🚨 [HILO CHECKOUT {product_id}] ¡STOCK DESCRUBIERTO! ({trigger_type.upper()}: {trigger_qty}U en {trigger_wh.name}). Arrancando secuencia de ataque inmediato...")
                 product.status = ProductStatus.PURCHASING
                 await db.commit()
                 
@@ -288,13 +293,17 @@ async def process_single_product(product_id: int):
                             product_name=product.name, product_url=product.url, price=stock_result.price, stock_change_msg=change_msg
                         )
 
-                # TRIGGER CHECKOUT CONCURRENTLY
-                logger.info(f"🔍 AUTO-BUY CHECK [{product.name}]: auto_buy={product.auto_buy}, total_available={stock_result.total_available}, min_trigger={product.min_stock_to_trigger}, already_attacking={product.id in active_checkout_tasks}")
-                if product.auto_buy and stock_result.total_available >= product.min_stock_to_trigger:
+                # TRIGGER CHECKOUT CONCURRENTLY (POR ALMACÉN INDIVIDUAL)
+                trigger_match = find_triggering_warehouse(
+                    stock_result, product.min_local_to_trigger, product.min_transit_to_trigger
+                )
+                logger.info(f"🔍 AUTO-BUY CHECK [{product.name}]: auto_buy={product.auto_buy}, min_local={product.min_local_to_trigger}, min_transit={product.min_transit_to_trigger}, trigger={'SÍ → ' + trigger_match[0].name + ' (' + trigger_match[1] + ': ' + str(trigger_match[2]) + 'U)' if trigger_match else 'NO'}, already_attacking={product.id in active_checkout_tasks}")
+                if product.auto_buy and trigger_match is not None:
+                    trigger_wh, trigger_type, trigger_qty = trigger_match
                     if product.id not in active_checkout_tasks:
-                        logger.warning(f"🚀 INICIANDO VUELO TÁCTICO AUTO-COMPRA PARA: {product.name} (Stock: {stock_result.total_available}U >= Trigger: {product.min_stock_to_trigger}U)")
+                        logger.warning(f"🚀 INICIANDO VUELO TÁCTICO AUTO-COMPRA PARA: {product.name} ({trigger_type.upper()}: {trigger_qty}U en {trigger_wh.name})")
                         product.status = ProductStatus.PURCHASING
-                        await _log_action(db, product.id, product.name, "auto_engage_triggered", LogLevel.SUCCESS, f"Auto-engage disparado. Stock: {stock_result.total_available}U. Iniciando checkout...")
+                        await _log_action(db, product.id, product.name, "auto_engage_triggered", LogLevel.SUCCESS, f"Auto-engage disparado. {trigger_type.upper()}: {trigger_qty}U en {trigger_wh.name}. Iniciando checkout...")
                         await db.commit()
                         active_checkout_tasks[product.id] = asyncio.create_task(persistent_checkout_loop(product.id))
                     else:
