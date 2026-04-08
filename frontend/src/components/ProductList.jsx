@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import {
   Trash2, Pause, Play, ExternalLink,
-  ShoppingCart, AlertTriangle, Package, Edit3, BarChart, X, Zap, Target, Eye, Database, Crosshair, Terminal, Camera, Activity, Download, Upload, MapPin, Truck, RefreshCw
+  ShoppingCart, AlertTriangle, Package, Edit3, BarChart, X, Zap, Target, Eye, Database, Crosshair, Terminal, Camera, Activity, Download, Upload, MapPin, Truck, RefreshCw, Check, ChevronDown
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { updateProduct, manualCheckout, fetchLogs, fetchLiveView, fetchProductAnalytics, fetchCategories } from '../utils/api';
@@ -81,7 +81,9 @@ function ProductItem({ product, i, onDelete, onToggle, onCheckout, onOpenEdit })
   const [logOutput, setLogOutput] = useState('');
   const [isExecuting, setIsExecuting] = useState(product.status === 'purchasing');
   const [liveFrame, setLiveFrame] = useState(null);
+  const [operationData, setOperationData] = useState(null);
   const terminalRef = useRef(null);
+  const opLogRef = useRef(null);
   
   const [history, setHistory] = useState([]);
   const [analyticsLoaded, setAnalyticsLoaded] = useState(false);
@@ -97,10 +99,10 @@ function ProductItem({ product, i, onDelete, onToggle, onCheckout, onOpenEdit })
   const statusConf = STATUS_CONFIG[activeStatus] || STATUS_CONFIG.monitoring;
   const StatusIcon = statusConf.icon;
 
-  // Auto-open terminal when attack starts
+  // Auto-open OPERACIÓN tab when attack starts
   useEffect(() => {
-     if (activeStatus === 'purchasing' && expandedTab !== 'snipe') {
-        setExpandedTab('snipe');
+     if (activeStatus === 'purchasing' && expandedTab !== 'auto') {
+        setExpandedTab('auto');
      }
   }, [activeStatus]);
 
@@ -109,28 +111,22 @@ function ProductItem({ product, i, onDelete, onToggle, onCheckout, onOpenEdit })
     if (expandedTab === 'snipe' || expandedTab === 'auto' || activeStatus === 'purchasing') {
       interval = setInterval(async () => {
         try {
-          // Filtrar por ID de producto y aumentar límite para tener margen de filtrado local
-          const logs = await fetchLogs(30, product.id); 
-          if (logs && logs.length > 0) {
-             // Filtrar localmente para excluir ruido de stock_changed si no estamos en 'recon'
-             const filtered = logs.filter(l => 
-                l.action !== 'stock_changed' && 
-                l.action !== 'check_error' &&
-                l.action !== 'category_created'
-             );
-             
-             if (filtered.length > 0) {
-                const terminalLines = filtered.reverse().map(l => {
-                   const time = new Date(l.created_at).toLocaleTimeString();
-                   return `[${time}] ${l.message}`;
-                }).join('\n');
-                setLogOutput(terminalLines);
-             }
-          }
-
-          if (activeStatus === 'purchasing' || isExecuting) {
+          // Always fetch live view when relevant tabs open or during attack
+          if (activeStatus === 'purchasing' || isExecuting || expandedTab === 'auto' || expandedTab === 'snipe') {
             const data = await fetchLiveView(product.id);
             if (data && data.frame) setLiveFrame(data.frame);
+            if (data && data.operation) {
+               setOperationData(data.operation);
+               // Sincronizar el log temporal viejo (FORCE_CMD) con la operación local actual
+               const terminalLines = (data.operation.log || []).map(l => {
+                  const time = new Date(l.ts * 1000).toLocaleTimeString();
+                  return `[${time}] ${l.msg}`;
+               }).join('\n');
+               if (terminalLines) setLogOutput(terminalLines);
+            }
+            else if (!data?.operation && operationData?.status === 'active') {
+              // Keep last operation data visible until explicitly cleared
+            }
           }
         } catch (e) {}
       }, 1500);
@@ -152,6 +148,12 @@ function ProductItem({ product, i, onDelete, onToggle, onCheckout, onOpenEdit })
       terminalRef.current.scrollTop = terminalRef.current.scrollHeight;
     }
   }, [logOutput]);
+
+  useEffect(() => {
+    if (opLogRef.current) {
+      opLogRef.current.scrollTop = opLogRef.current.scrollHeight;
+    }
+  }, [operationData?.log?.length]);
 
   const handleSaveConfig = async () => {
      try {
@@ -390,67 +392,186 @@ function ProductItem({ product, i, onDelete, onToggle, onCheckout, onOpenEdit })
                </div>
             )}
 
-             {/* TAB: AUTOPILOT (Operación) */}
+             {/* TAB: OPERACIÓN — Centro Táctico */}
              {expandedTab === 'auto' && (
                 <div className="space-y-4 animate-slide-up">
-                   <div className="bg-surface-800 border border-amber-500/30 p-4 shadow-inner relative overflow-hidden">
-                      <div className="absolute top-0 right-0 p-2 opacity-10"><Target size={40} className="text-amber-500" /></div>
-                      <div className="text-[10px] text-amber-500 font-mono tracking-widest uppercase mb-4 flex items-center gap-2 font-bold"><Target size={14}/> Sniper Autopilot Configuration</div>
-                      
-                      <label className={`w-full flex items-center justify-between p-3 mb-4 cursor-pointer border transition-all ${product.auto_buy ? 'bg-amber-500/10 border-amber-500/50 shadow-[0_0_15px_rgba(255,176,0,0.1)] text-amber-500 font-bold' : 'bg-surface-900 border-surface-700 text-surface-500 hover:border-surface-600'}`}>
-                         <span className="text-[10px] font-mono uppercase tracking-widest flex items-center gap-2"><Crosshair size={14}/> AUTO-ENGAGE ON RECON</span>
-                         <input type="checkbox" className="hidden" checked={product.auto_buy} onChange={async ()=>{
-                             const newState = !product.auto_buy;
-                             try {
-                                 const result = await updateProduct(product.id, { auto_buy: newState });
-                                 console.log('AUTO-BUY PATCH result:', result);
-                                 product.auto_buy = newState;
-                                 // Small delay to ensure DB flush before loadData refreshes
-                                 await new Promise(r => setTimeout(r, 300));
-                                 onToggle(product.id, { preventBackend: true });
-                                 toast.success(`AUTO-ENGAGE ${newState ? 'ONLINE' : 'OFFLINE'}`, { icon: newState ? '🎯' : '⏸️', style: { background: '#1e293b', color: newState?'#ffb000':'#94a3b8', border: newState?'1px solid #ffb000':'1px solid #334155' }});
-                             } catch(err) {
-                                 console.error('AUTO-BUY PATCH failed:', err);
-                                 toast.error(`Error activando autopilot: ${err.message}`, { style: { background: '#1e293b', color: '#ff003c', border: '1px solid #ff003c' }});
-                             }
-                         }} />
-                         <div className={`w-10 h-5 border flex items-center px-1 transition-colors ${product.auto_buy ? 'border-amber-500 bg-amber-500/20 justify-end' : 'border-surface-600 bg-surface-900 justify-start'}`}>
-                            <div className={`w-4 h-4 shadow-sm ${product.auto_buy ? 'bg-amber-500 shadow-[0_0_10px_rgba(255,176,0,0.8)]' : 'bg-surface-600'}`} />
+                   {/* CONFIGURACIÓN COLAPSABLE */}
+                   <details className="group">
+                      <summary className="bg-surface-800 border border-amber-500/30 p-3 cursor-pointer flex items-center justify-between hover:bg-surface-700/50 transition-colors">
+                         <div className="text-[10px] text-amber-500 font-mono tracking-widest uppercase flex items-center gap-2 font-bold"><Target size={14}/> Autopilot Config</div>
+                         <div className="flex items-center gap-3">
+                            <span className={`text-[9px] font-mono px-2 py-0.5 border ${product.auto_buy ? 'border-amber-500 text-amber-500 bg-amber-500/10' : 'border-surface-600 text-surface-500'}`}>{product.auto_buy ? 'ENGAGE ON' : 'ENGAGE OFF'}</span>
+                            <ChevronDown size={14} className="text-amber-500 group-open:rotate-180 transition-transform" />
                          </div>
-                      </label>
-
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
-                         <div className="space-y-4">
-                           <div>
-                              <label className="text-[10px] font-mono text-surface-400 tracking-wider block mb-2 font-bold uppercase">Unidades a Asegurar</label>
-                              <input type="number" min="1" max="999" value={targetQty} onChange={e=>setTargetQty(e.target.value)} onBlur={handleSaveConfig} className="bg-surface-900 border border-surface-700 text-brand-400 w-full p-2 focus:border-brand-400 focus:outline-none text-center font-mono text-sm shadow-inner" />
-                           </div>
-                           <div>
-                              <label className="text-[10px] font-mono text-surface-400 tracking-wider block mb-2 font-bold uppercase">Disparar si Stock {">="}</label>
-                              <input type="number" min="1" max="999" value={minTrigger} onChange={e=>setMinTrigger(e.target.value)} onBlur={handleSaveConfig} className="bg-surface-900 border border-surface-700 text-amber-500 w-full p-2 focus:border-amber-500 focus:outline-none text-center font-mono text-sm shadow-inner" />
-                           </div>
-                         </div>
-
-                         <div className="space-y-4">
+                      </summary>
+                      <div className="bg-surface-800 border border-t-0 border-amber-500/30 p-4 shadow-inner relative overflow-hidden">
+                         <label className={`w-full flex items-center justify-between p-3 mb-4 cursor-pointer border transition-all ${product.auto_buy ? 'bg-amber-500/10 border-amber-500/50 shadow-[0_0_15px_rgba(255,176,0,0.1)] text-amber-500 font-bold' : 'bg-surface-900 border-surface-700 text-surface-500 hover:border-surface-600'}`}>
+                            <span className="text-[10px] font-mono uppercase tracking-widest flex items-center gap-2"><Crosshair size={14}/> AUTO-ENGAGE ON RECON</span>
+                            <input type="checkbox" className="hidden" checked={product.auto_buy} onChange={async ()=>{
+                                const newState = !product.auto_buy;
+                                try {
+                                    await updateProduct(product.id, { auto_buy: newState });
+                                    product.auto_buy = newState;
+                                    await new Promise(r => setTimeout(r, 300));
+                                    onToggle(product.id, { preventBackend: true });
+                                    toast.success(`AUTO-ENGAGE ${newState ? 'ONLINE' : 'OFFLINE'}`, { icon: newState ? '🎯' : '⏸️', style: { background: '#1e293b', color: newState?'#ffb000':'#94a3b8', border: newState?'1px solid #ffb000':'1px solid #334155' }});
+                                } catch(err) {
+                                    toast.error(`Error: ${err.message}`, { style: { background: '#1e293b', color: '#ff003c', border: '1px solid #ff003c' }});
+                                }
+                            }} />
+                            <div className={`w-10 h-5 border flex items-center px-1 transition-colors ${product.auto_buy ? 'border-amber-500 bg-amber-500/20 justify-end' : 'border-surface-600 bg-surface-900 justify-start'}`}>
+                               <div className={`w-4 h-4 shadow-sm ${product.auto_buy ? 'bg-amber-500 shadow-[0_0_10px_rgba(255,176,0,0.8)]' : 'bg-surface-600'}`} />
+                            </div>
+                         </label>
+                         <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
                             <div>
-                               <label className="text-[10px] font-mono text-surface-400 tracking-wider block mb-2 font-bold uppercase">Acción Post-Compra</label>
-                               <select 
-                                 value={product.post_purchase_action || 'pause'} 
-                                 onChange={async (e) => {
-                                     const action = e.target.value;
-                                     await updateProduct(product.id, { post_purchase_action: action });
-                                     toast.success(`POST-COMPRA: ${action.toUpperCase()}`, { style: { background: '#1e293b', color: '#59b0ff', border: '1px solid #1e293b' } });
-                                 }}
-                                 className="bg-surface-900 border border-surface-700 text-blue-400 w-full p-2 focus:border-blue-500 focus:outline-none font-mono text-xs shadow-inner appearance-none cursor-pointer"
-                               >
-                                 <option value="pause">PAUSAR TRAS ÉXITO (Safe Mode)</option>
-                                 <option value="loop">VOLVER A EJECUTAR (Loop Mode)</option>
+                               <label className="text-[10px] font-mono text-surface-400 tracking-wider block mb-1 font-bold uppercase">Cantidad</label>
+                               <input type="number" min="1" max="999" value={targetQty} onChange={e=>setTargetQty(e.target.value)} onBlur={handleSaveConfig} className="bg-surface-900 border border-surface-700 text-brand-400 w-full p-2 focus:border-brand-400 focus:outline-none text-center font-mono text-sm shadow-inner" />
+                            </div>
+                            <div>
+                               <label className="text-[10px] font-mono text-surface-400 tracking-wider block mb-1 font-bold uppercase">Min Stock</label>
+                               <input type="number" min="1" max="999" value={minTrigger} onChange={e=>setMinTrigger(e.target.value)} onBlur={handleSaveConfig} className="bg-surface-900 border border-surface-700 text-amber-500 w-full p-2 focus:border-amber-500 focus:outline-none text-center font-mono text-sm shadow-inner" />
+                            </div>
+                            <div className="col-span-2">
+                               <label className="text-[10px] font-mono text-surface-400 tracking-wider block mb-1 font-bold uppercase">Post-Compra</label>
+                               <select value={product.post_purchase_action || 'pause'} onChange={async (e) => { await updateProduct(product.id, { post_purchase_action: e.target.value }); toast.success('CONFIG OK'); }} className="bg-surface-900 border border-surface-700 text-blue-400 w-full p-2 focus:border-blue-500 focus:outline-none font-mono text-xs shadow-inner appearance-none cursor-pointer">
+                                  <option value="pause">PAUSAR TRAS ÉXITO</option>
+                                  <option value="loop">LOOP MODE</option>
                                </select>
-                               <div className="text-[9px] text-surface-500 mt-2 italic font-mono uppercase">* Define el comportamiento del sniper tras un checkout exitoso.</div>
                             </div>
                          </div>
                       </div>
-                   </div>
+                   </details>
+
+                   {/* ═══ STEPPER VISUAL ═══ */}
+                   {operationData ? (
+                      <div className="bg-surface-800 border border-surface-700 p-4">
+                         <div className="text-[10px] text-brand-400 font-mono tracking-widest uppercase mb-4 flex items-center gap-2 font-bold">
+                            <Crosshair size={14} className={operationData.status === 'active' ? 'animate-spin' : ''} />
+                            MISIÓN EN CURSO — {Math.round(operationData.elapsed_total_ms / 1000)}s
+                            <span className={`ml-auto px-2 py-0.5 text-[9px] border font-bold ${
+                               operationData.status === 'active' ? 'border-amber-500 text-amber-500 bg-amber-500/10 animate-pulse' :
+                               operationData.status === 'completed' ? 'border-emerald-500 text-emerald-500 bg-emerald-500/10' :
+                               'border-red-500 text-red-500 bg-red-500/10'
+                            }`}>{operationData.status === 'active' ? '⊕ EJECUTANDO' : operationData.status === 'completed' ? '✓ COMPLETADO' : '✖ FALLIDO'}</span>
+                         </div>
+                         
+                         {/* STEPPER HORIZONTAL */}
+                         <div className="flex items-start gap-0 mb-6 overflow-x-auto pb-2">
+                            {operationData.steps.map((step, idx) => {
+                               const colors = {
+                                  pending: { bg: 'bg-surface-700', border: 'border-surface-600', text: 'text-surface-500', line: 'bg-surface-600' },
+                                  active:  { bg: 'bg-amber-500', border: 'border-amber-500', text: 'text-amber-400', line: 'bg-amber-500/50' },
+                                  done:    { bg: 'bg-emerald-500', border: 'border-emerald-500', text: 'text-emerald-400', line: 'bg-emerald-500' },
+                                  error:   { bg: 'bg-red-500', border: 'border-red-500', text: 'text-red-400', line: 'bg-red-500' },
+                                  retry:   { bg: 'bg-orange-500', border: 'border-orange-500', text: 'text-orange-400', line: 'bg-orange-500/50' },
+                               };
+                               const c = colors[step.status] || colors.pending;
+                               const isLast = idx === operationData.steps.length - 1;
+                               return (
+                                  <div key={step.id} className="flex items-start flex-1 min-w-0">
+                                     <div className="flex flex-col items-center min-w-[70px]">
+                                        <div className={`w-7 h-7 rounded-full ${c.bg} ${c.border} border-2 flex items-center justify-center shadow-lg transition-all duration-500 ${
+                                           step.status === 'active' ? 'animate-pulse shadow-[0_0_15px_rgba(245,158,11,0.5)] scale-110' :
+                                           step.status === 'retry' ? 'animate-bounce shadow-[0_0_12px_rgba(249,115,22,0.5)]' :
+                                           step.status === 'done' ? 'shadow-[0_0_10px_rgba(16,185,129,0.3)]' :
+                                           step.status === 'error' ? 'shadow-[0_0_10px_rgba(239,68,68,0.5)]' : ''
+                                        }`}>
+                                           {step.status === 'done' && <Check size={14} className="text-white" />}
+                                           {step.status === 'error' && <X size={14} className="text-white" />}
+                                           {step.status === 'active' && <div className="w-2.5 h-2.5 bg-white rounded-full animate-ping" />}
+                                           {step.status === 'retry' && <RefreshCw size={12} className="text-white animate-spin" />}
+                                           {step.status === 'pending' && <span className="text-[8px] font-bold text-surface-400">{idx + 1}</span>}
+                                        </div>
+                                        <span className={`text-[8px] font-mono mt-1.5 text-center leading-tight uppercase font-bold ${c.text} transition-colors`}>{step.label}</span>
+                                        {step.status !== 'pending' && step.elapsed_ms > 0 && (
+                                           <span className="text-[7px] font-mono text-surface-500 mt-0.5">{(step.elapsed_ms / 1000).toFixed(1)}s</span>
+                                        )}
+                                        {step.retries > 0 && (
+                                           <span className="text-[7px] font-mono text-orange-400 mt-0.5">×{step.retries} retries</span>
+                                        )}
+                                     </div>
+                                     {!isLast && (
+                                        <div className="flex-1 mt-3.5 mx-1">
+                                           <div className={`h-0.5 w-full ${step.status === 'done' ? c.line : 'bg-surface-700'} transition-all duration-700`} />
+                                        </div>
+                                     )}
+                                  </div>
+                               );
+                            })}
+                         </div>
+
+                         {/* PASO ACTUAL DETALLE */}
+                         {operationData.current_step_index >= 0 && operationData.steps[operationData.current_step_index] && (
+                            <div className={`p-3 border mb-4 font-mono text-[10px] transition-all ${
+                               operationData.steps[operationData.current_step_index].status === 'error' ? 'border-red-500/50 bg-red-500/5 text-red-400' :
+                               operationData.steps[operationData.current_step_index].status === 'retry' ? 'border-orange-500/50 bg-orange-500/5 text-orange-400 animate-pulse' :
+                               'border-amber-500/30 bg-amber-500/5 text-amber-400'
+                            }`}>
+                               <div className="flex items-center gap-2 uppercase tracking-wider">
+                                  {operationData.steps[operationData.current_step_index].status === 'active' && <div className="w-1.5 h-1.5 bg-amber-500 rounded-full animate-ping" />}
+                                  {operationData.steps[operationData.current_step_index].status === 'retry' && <RefreshCw size={10} className="animate-spin" />}
+                                  {operationData.steps[operationData.current_step_index].detail}
+                               </div>
+                            </div>
+                         )}
+
+                         {/* GRID: DOM VIEWER + LOG */}
+                         <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
+                            {/* DOM / SCREENSHOT */}
+                            <div className="border border-surface-700 bg-surface-900 overflow-hidden">
+                               <div className="relative w-full aspect-video flex items-center justify-center">
+                                  <div className="absolute inset-0 z-0 bg-[linear-gradient(rgba(0,255,65,0.03)_1px,transparent_1px),linear-gradient(90deg,rgba(0,255,65,0.03)_1px,transparent_1px)] bg-[size:12px_12px]" />
+                                  {liveFrame ? (
+                                     <>
+                                        <img src={`data:image/jpeg;base64,${liveFrame}`} className="absolute inset-0 w-full h-full object-contain z-0 opacity-90" alt="OP_CAM" />
+                                        <div className="absolute inset-0 bg-brand-500/5 z-10 animate-scanline border-t border-brand-400/30 pointer-events-none" />
+                                     </>
+                                  ) : (
+                                     <div className="z-10 flex items-center justify-center text-brand-400/30 flex-col gap-2">
+                                        <Target className="w-8 h-8 opacity-40" />
+                                        <span className="text-[9px] tracking-wider font-mono uppercase">SCANNER STANDBY</span>
+                                     </div>
+                                  )}
+                                  <div className="absolute top-1 left-1.5 z-20 text-[7px] text-brand-400/40 font-mono">OP_CAM // LIVE</div>
+                                  {operationData.status === 'active' && <div className="absolute top-1 right-1.5 z-20 flex gap-1 items-center"><div className="w-1.5 h-1.5 bg-red-500 rounded-full animate-pulse" /><span className="text-[7px] text-red-500 font-mono">REC</span></div>}
+                               </div>
+                            </div>
+
+                            {/* OPERATION LOG */}
+                            <div className="border border-surface-700 bg-surface-900 flex flex-col max-h-[250px]">
+                               <div className="px-3 py-1.5 border-b border-surface-700 flex items-center gap-2 bg-surface-800">
+                                  <Terminal size={10} className="text-brand-400" />
+                                  <span className="text-[8px] font-mono text-brand-400 uppercase tracking-wider">Operation Log</span>
+                                  <span className="text-[8px] font-mono text-surface-500 ml-auto">{operationData.log?.length || 0} entries</span>
+                               </div>
+                               <div ref={opLogRef} className="flex-1 overflow-y-auto p-2 custom-scrollbar">
+                                  {(operationData.log || []).map((entry, idx) => {
+                                     const time = new Date(entry.ts * 1000).toLocaleTimeString();
+                                     const levelColors = {
+                                        info: 'text-brand-400',
+                                        warning: 'text-orange-400',
+                                        error: 'text-red-400',
+                                        success: 'text-emerald-400',
+                                     };
+                                     return (
+                                        <div key={idx} className={`text-[9px] font-mono leading-relaxed ${levelColors[entry.level] || 'text-brand-400/70'} ${idx === (operationData.log?.length || 0) - 1 ? 'font-bold' : ''}`}>
+                                           <span className="text-surface-500 mr-1">[{time}]</span> {entry.msg}
+                                        </div>
+                                     );
+                                  })}
+                               </div>
+                            </div>
+                         </div>
+                      </div>
+                   ) : (
+                      /* NO OPERATION ACTIVE — show standby */
+                      <div className="bg-surface-800 border border-surface-700 border-dashed p-8 flex flex-col items-center justify-center gap-3">
+                         <Target size={28} className="text-surface-600 opacity-40" />
+                         <span className="text-[10px] font-mono text-surface-500 uppercase tracking-wider">Sin operación activa</span>
+                         <span className="text-[9px] font-mono text-surface-600">Activa AUTO-ENGAGE o usa FORCE_CMD para iniciar una misión</span>
+                      </div>
+                   )}
                 </div>
              )}
 

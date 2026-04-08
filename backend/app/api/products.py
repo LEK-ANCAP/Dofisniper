@@ -275,9 +275,10 @@ async def manual_checkout(product_id: int, background_tasks: BackgroundTasks, db
 
 @router.get("/{product_id}/live-view")
 async def get_product_live_view(product_id: int):
-    """Retorna el último frame en base64 para visualización en tiempo real."""
+    """Retorna el último frame en base64 y datos de operación en tiempo real."""
     frame = live_view_manager.get_frame(product_id)
-    return {"frame": frame}
+    operation = live_view_manager.get_operation_dict(product_id)
+    return {"frame": frame, "operation": operation}
 
 @public_router.get("/debug/screenshot", response_class=StreamingResponse)
 async def get_debug_screenshot():

@@ -204,26 +204,47 @@ async def add_to_cart_and_checkout(
     product_id: int = None
 ):
     result = {"success": False, "message": "", "checkout_url": None}
-    current_step = "Iniciando"
-    steps_trace = []
+    
+    # Start operation tracking
+    tracker = live_view_manager.start_operation(product_id) if product_id else None
 
     async def record_step(msg):
-        nonlocal current_step
-        current_step = msg
-        steps_trace.append(msg)
         logger.info(f"👉 Paso: {msg}")
+        if tracker:
+            tracker.update_detail(msg)
         try:
             msg_bytes = await page.screenshot(type="jpeg", quality=40)
             live_view_manager.update_frame(product_id, msg_bytes)
-        except Exception as e:
-            logger.warning(f"Sensor no pudo capturar frame en '{msg}' (posible navegación o cierre de pestaña).")
+        except Exception:
+            pass
+
+    async def retry_selector(selector, timeout_initial=15000, min_timeout=3000, max_retries=3, state="visible"):
+        """Intenta encontrar un selector reduciéndole el timeout en cada reintento."""
+        timeout = timeout_initial
+        for attempt in range(max_retries + 1):
+            try:
+                el = await page.wait_for_selector(selector, timeout=timeout, state=state)
+                return el
+            except PlaywrightTimeout:
+                if attempt < max_retries:
+                    timeout = max(min_timeout, timeout // 2)
+                    if tracker:
+                        tracker.mark_retry(f"Selector no encontrado, reintentando con timeout={timeout}ms")
+                    await record_step(f"Reintento {attempt+1}/{max_retries} (timeout: {timeout}ms)")
+                else:
+                    return None
 
     try:
-        # ── Paso 0: Enrutamiento Óptimo de Almacén ──
+        # ══════════════════════════════════════════════════════════
+        # PASO 1: ENRUTAMIENTO DE ALMACÉN
+        # ══════════════════════════════════════════════════════════
+        if tracker:
+            tracker.advance_to("routing", "Calculando almacén prioritario...")
+        
         from app.scraper.monitor import check_stock
         from urllib.parse import urlparse, parse_qs, urlencode, urlunparse
         
-        await record_step("Calculando enrutamiento de almacén...")
+        await record_step("Consultando stock y almacenes disponibles...")
         stock_info = await check_stock(page, product_url)
         
         best_wh = None
@@ -232,7 +253,6 @@ async def add_to_cart_and_checkout(
             transits = [w for w in stock_info.warehouses if w.transit_stock > 0]
             
             if physicals:
-                # Priorizar Camagüey, el resto después
                 physicals.sort(key=lambda w: 0 if "camag" in w.name.lower() else 1)
                 best_wh = physicals[0]
             elif transits:
@@ -245,37 +265,50 @@ async def add_to_cart_and_checkout(
             qs["warehouseId"] = [str(best_wh.address_id)]
             new_query = urlencode(qs, doseq=True)
             product_url = urlunparse(parsed._replace(query=new_query))
+            await record_step(f"Enrutado a: {best_wh.name} (ID: {best_wh.address_id})")
             logger.info(f"📍 URL de compra enrutada al almacén prioritario: {best_wh.name} ({best_wh.address_id})")
+        else:
+            await record_step("Sin almacén preferente — usando ruta por defecto")
+        
+        if tracker:
+            tracker.mark_step_done("routing")
 
-        # ── Paso 1: Añadir al carrito ──
-        await record_step("Navegando a la URL del producto")
-
-        # Asegurar que estamos en la página del producto
+        # ══════════════════════════════════════════════════════════
+        # PASO 2: NAVEGACIÓN + LOGIN BYPASS
+        # ══════════════════════════════════════════════════════════
+        if tracker:
+            tracker.advance_to("navigate", "Navegando a la URL del producto...")
+        
+        await record_step("Cargando página del producto...")
         if page.url != product_url:
             await page.goto(product_url, wait_until="domcontentloaded", timeout=30000)
             await page.wait_for_timeout(2000)
             
-        # ── BYPASS DE LOGIN PROACTIVO (Para evitar carritos vacíos) ──
+        # Login bypass
+        await record_step("Verificando sesión activa...")
         login_result = await execute_login_bypass(page, email, password, record_step)
         if not login_result.get("success") and "Ya estaba logueado" not in login_result.get("message", ""):
-            if login_result.get("message") != "CRÍTICO: Sesión bloqueada y faltan credenciales maestras.":
-                logger.error(login_result["message"])
+            if tracker:
+                tracker.mark_step_error(f"Login falló: {login_result.get('message', '')}")
+                tracker.finish(False, login_result.get("message", "Login falló"))
             return login_result
             
-        # Si nos mandó al inicio (ej. por re-login), volvemos a la página del producto
         if page.url != product_url:
+            await record_step("Renavegando al producto tras login...")
             await page.goto(product_url, wait_until="domcontentloaded")
             await page.wait_for_timeout(2000)
+        
+        await record_step("Página del producto cargada correctamente")
+        if tracker:
+            tracker.mark_step_done("navigate")
 
-        # (Ajuste de cantidad delegado exitosamente a la fase del Carrito)
+        # ══════════════════════════════════════════════════════════
+        # PASO 3: AÑADIR AL CARRITO
+        # ══════════════════════════════════════════════════════════
+        if tracker:
+            tracker.advance_to("add_cart", "Buscando botón 'Añadir al carrito'...")
 
-        # Buscar y clickear botón de añadir al carrito
-        try:
-            add_btn = await page.wait_for_selector(
-                CHECKOUT_SELECTORS["add_to_cart"], timeout=45000, state="visible"
-            )
-        except PlaywrightTimeout:
-            add_btn = None
+        add_btn = await retry_selector(CHECKOUT_SELECTORS["add_to_cart"], timeout_initial=45000, min_timeout=5000, max_retries=3)
 
         if not add_btn:
             import os
@@ -283,255 +316,244 @@ async def add_to_cart_and_checkout(
             content = await page.content()
             with open("logs/last_checkout_fail.html", "w", encoding="utf-8") as f:
                 f.write(content)
-                
-            result["message"] = "No se encontró el botón de añadir al carrito (DOM guardado)"
-            logger.error(f"❌ {result['message']}")
+            msg = "No se encontró el botón de añadir al carrito (DOM guardado)"
+            if tracker:
+                tracker.mark_step_error(msg)
+                tracker.finish(False, msg)
+            result["message"] = msg
             return result
 
-        await record_step("Insertando al Carrito")
+        await record_step("Click en 'Añadir al carrito'...")
         await add_btn.click()
         logger.info("🖱️ Click en 'Añadir al carrito'")
         
-        # ── Manejar modal de "En tránsito" (si aparece) ──
+        # Modal de "En tránsito"
         try:
+            await record_step("Esperando posible confirmación de tránsito...")
             confirm_btn = await page.wait_for_selector(
                 "button:has-text('Confirmar'), button:has-text('Confirm'), .el-message-box__btns .el-button--primary", 
                 timeout=3000, state="visible"
             )
             if confirm_btn:
                 await confirm_btn.click()
-                logger.info("🖱️ Popup 'En tránsito' confirmado")
+                await record_step("Popup de tránsito confirmado")
                 await page.wait_for_timeout(2000)
         except PlaywrightTimeout:
-            # Es normal si no aparece el popup (ej: stock local)
             pass
 
-        # Verificar que se añadió correctamente (buscar toast/popup de éxito o ir directo)
+        # Verificar éxito
         try:
-            await page.wait_for_selector(
-                CHECKOUT_SELECTORS["cart_success"], timeout=3000, state="attached"
-            )
-            logger.info("✅ Producto añadido al carrito correctamente")
+            await page.wait_for_selector(CHECKOUT_SELECTORS["cart_success"], timeout=3000, state="attached")
+            await record_step("Producto añadido al carrito ✓")
         except PlaywrightTimeout:
-            logger.warning(
-                "⚠️ No se detectó mensaje visual de éxito, asumiendo continuación..."
-            )
-
-        # ── Paso 2: Ir al carrito ──
-        await record_step("Fase: Navegación hacia el Carrito")
-        logger.info("🛒 Buscando enlace al carrito...")
+            await record_step("Sin mensaje de éxito visual — continuando")
         
-        # Intentar click en icono de carrito o navegar directamente
+        if tracker:
+            tracker.mark_step_done("add_cart")
+
+        # ══════════════════════════════════════════════════════════
+        # PASO 4: CHECKOUT (Carrito → Pagar)
+        # ══════════════════════════════════════════════════════════
+        if tracker:
+            tracker.advance_to("checkout", "Navegando al carrito...")
+
+        # Ir al carrito
         try:
-            await record_step("Buscando icono visual del Carrito en el menú superior")
-            cart_link = await page.wait_for_selector(
-                CHECKOUT_SELECTORS["go_to_cart"], timeout=5000
-            )
-            await record_step("Clickeando el icono del Carrito")
+            await record_step("Buscando icono del carrito...")
+            cart_link = await page.wait_for_selector(CHECKOUT_SELECTORS["go_to_cart"], timeout=5000)
             await cart_link.click()
             await page.wait_for_timeout(2000)
         except PlaywrightTimeout:
-            await record_step("Icono de carrito no detectado. Forzando navegación por URL (/cart)")
+            await record_step("Forzando navegación directa a /cart")
             try:
-                await page.goto(
-                    f"{settings.dofimall_base_url}/cart",
-                    wait_until="domcontentloaded",
-                    timeout=20000,
-                )
+                await page.goto(f"{settings.dofimall_base_url}/cart", wait_until="domcontentloaded", timeout=20000)
             except PlaywrightTimeout:
-                await record_step("Advertencia: La red está inestable (Timeout esperado). Forzando continuación.")
-                logger.warning("⚠️ Timeout esperando domcontentloaded en el carrito, continuando de todos modos...")
+                await record_step("Timeout en carga del carrito — forzando continuación")
             await page.wait_for_timeout(2000)
             
-        await record_step(f"Verificando carga de pasarela (URL actual: {page.url})")
-        logger.info(f"📍 En el carrito: {page.url}")
+        await record_step(f"En carrito: {page.url}")
 
-        # ── Paso 3: Verificar Selección Inteligente ──
-        await record_step("Fase: Verificación inteligente de items")
+        # Verificar selección — usar texto del footer como fuente de verdad
+        await record_step("Verificando items seleccionados...")
+        await page.wait_for_timeout(1500)  # Esperar renderizado del carrito
         
-        # Verificar activamente si el carrito indica '0 productos'
-        cart_empty_text = page.locator("body", has_text="Ha seleccionado 0 productos")
-        
-        if await cart_empty_text.count() > 0:
-            logger.info("⚠️ El carrito muestra 0 productos seleccionados. Forzando selección de los checkboxes.")
+        async def ensure_products_selected():
+            """Verifica y fuerza la selección de productos en el carrito. Retorna True si hay productos seleccionados."""
             try:
-                # Buscar checkboxes: Dofimall usa .cart-checkbox en vez de .el-checkbox para esta vista
-                checkboxes = await page.locator(".cart-checkbox, .el-checkbox, input[type='checkbox']").all()
-                if checkboxes:
-                    logger.info(f"👉 Se encontraron {len(checkboxes)} checkboxes. Intentando marcar todos...")
-                    # Hacemos click evaluar en todos, para asegurar que se marcan los items y el 'Seleccionar TODO'
-                    for cb in checkboxes:
-                        try:
-                            # click() a nivel de DOM para forzar el bind de Vue sin bloqueos de elementos superpuestos
-                            await cb.evaluate("node => node.click()")
-                            await page.wait_for_timeout(300)
-                        except Exception as e:
-                            pass
-                            
-                    await page.wait_for_timeout(1000)
-                    
-                    # Verificación post-click
-                    if await cart_empty_text.count() > 0:
-                        logger.warning("❌ El carrito sigue con 0 productos después de clickear checkboxes.")
-                    else:
-                        logger.info("✅ Checkboxes forzados exitosamente.")
-                else:
-                    logger.warning("❌ No se detectó ningún checkbox visible en el DOM.")
-            except Exception as e:
-                logger.error(f"Error intentando forzar marca de checkbox: {e}")
-        else:
-            logger.info("✅ Ya existen productos seleccionados en el carrito.")
-
-        # ── Ajustar Cantidad Exacta dentro del carrito ──
-        if target_quantity > 1:
-            try:
-                await record_step(f"Ajustando la cantidad deseada al lote de ataque: {target_quantity} uds")
-                cart_qty_input = page.locator("input[type='number']").first
+                # Leer el texto del footer del carrito para saber cuantos están seleccionados
+                footer_text = await page.evaluate("""() => {
+                    const el = document.querySelector('.cart-footer, .cart-bottom, .fixed-bottom, .cart-total');
+                    return el ? el.innerText : document.body.innerText.substring(document.body.innerText.indexOf('seleccionado') - 30, document.body.innerText.indexOf('seleccionado') + 50);
+                }""")
                 
+                # Detectar "Ha seleccionado 0 productos" o similar
+                import re
+                match = re.search(r'seleccionado\s+(\d+)\s+producto', footer_text, re.IGNORECASE)
+                selected_count = int(match.group(1)) if match else -1
+                
+                if selected_count == 0:
+                    await record_step(f"0 productos seleccionados — clickeando 'Seleccionar todo'...")
+                    # Click en el primer checkbox visible (suele ser "Seleccionar todo")
+                    select_all = page.locator(".cart-checkbox, .el-checkbox").first
+                    try:
+                        await select_all.click(force=True, timeout=2000)
+                        await page.wait_for_timeout(800)
+                        await record_step("Click en 'Seleccionar todo' ejecutado ✓")
+                    except Exception:
+                        # Fallback: click en todos los checkboxes individuales
+                        cbs = await page.locator(".cart-checkbox, .el-checkbox").all()
+                        for cb in cbs:
+                            try:
+                                await cb.click(force=True, timeout=500)
+                                await page.wait_for_timeout(300)
+                            except Exception:
+                                pass
+                        await record_step(f"Forzados {len(cbs)} checkboxes individuales")
+                    return False  # Estaban en 0, tuvimos que forzar
+                elif selected_count > 0:
+                    await record_step(f"{selected_count} producto(s) seleccionado(s) ✓")
+                    return True
+                else:
+                    # No pudimos leer el count, asumimos OK pero avisamos
+                    await record_step("No se pudo leer conteo de selección — continuando")
+                    return True
+            except Exception as e:
+                await record_step(f"Error verificando selección: {str(e)[:60]}")
+                return True  # Continuar de todas formas
+        
+        await ensure_products_selected()
+
+        # Ajustar cantidad (forzar mínimo 1)
+        effective_qty = max(target_quantity, 1)
+        if effective_qty > 1:
+            try:
+                await record_step(f"Ajustando cantidad a {effective_qty} uds...")
+                cart_qty_input = page.locator("input[type='number']").first
                 if await cart_qty_input.count() > 0:
-                    await cart_qty_input.fill(str(target_quantity))
+                    await cart_qty_input.fill(str(effective_qty))
                     await cart_qty_input.press("Enter")
-                    # ESPERA INTELIGENTE DE RED: Al presionar Enter, Vue recalcula y lanza un XHR.
-                    logger.info("⏳ Esperando estabilización de red por reactividad de Vue...")
                     try:
                         await page.wait_for_load_state("networkidle", timeout=6000)
                     except PlaywrightTimeout:
-                        logger.warning("⚠️ Timeout esperando networkidle tras ajustar cantidad. Avanzando de todos modos.")
-                    
-                    logger.info(f"✔️ Cantidad blindada en carrito a {target_quantity} y UI estabilizada.")
+                        pass
+                    await record_step(f"Cantidad ajustada a {effective_qty} ✓")
             except Exception as e:
-                logger.warning(f"Aviso de intercepción ajustando cantidad en carrito: {e}")
-                await record_step("Aviso: Fallo visual ajustando la cantidad. Continuando...")
+                await record_step(f"Aviso ajustando cantidad: {str(e)[:50]}")
 
-        # ── Click Inteligente en botón de pagar/checkout ──
-        await record_step("Escaneando el DOM buscando el botón final de PAGO (Checkout)")
-        try:
-            # Seleccionamos las clases exactas de DofiMall (Escritorio y Móvil), o coincidencia exacta de texto
-            checkout_locator = page.locator(".cart-footer__operate, .go_buy.go_submit, div:text-is('Pagar'), button:text-is('Pagar')").locator("visible=true").first
-            await checkout_locator.wait_for(state="attached", timeout=6000)
-            checkout_btn = checkout_locator
-            await record_step("Botón de Pagar activo, visible y detectado.")
-        except PlaywrightTimeout:
-            try:
-                # Plan B robusto
-                checkout_locator = page.locator("div.cart-footer__operate, div.go_buy").locator("visible=true").last
-                await checkout_locator.wait_for(state="attached", timeout=5000)
-                checkout_btn = checkout_locator
-                await record_step("Botón de Pagar detectado mediante fallback de clases.")
-            except PlaywrightTimeout:
-                checkout_btn = None
-
-        if not checkout_btn:
-            await record_step("CRÍTICO: No se encontró el botón de PAGO. Generando volcado del DOM")
-            import os
-            os.makedirs("logs", exist_ok=True)
-            content = await page.content()
-            with open("logs/last_checkout_fail.html", "w", encoding="utf-8") as f:
-                f.write(content)
-                
-            result["message"] = "No se encontró el botón de checkout visible y activo (DOM guardado)"
-            logger.error(f"❌ {result['message']}")
-            await page.screenshot(path="screenshots/checkout_btn_not_found.png")
-            return result
-            
-        await record_step("Inyectando Clic Quirúrgico en Pagar ('Checkout')")
-        # BUCLE DE REINTENTO AGRESIVO: Clickear Pagar hasta que salgamos del carrito
+        # Click en PAGAR
+        await record_step("Buscando botón de PAGAR...")
         pagar_success = False
         import time
         for intento in range(1, 5):
-            logger.info(f"🛒 Intento {intento} de hacer clic en Pagar...")
+            # PRE-CHECK: Si ya salimos del carrito, no reintentar
+            if "cart" not in page.url:
+                await record_step("Navegación fuera del carrito detectada antes del click ✓")
+                pagar_success = True
+                break
+            
+            # RE-SELECCIÓN: Tras primer fallo, volver a verificar checkboxes
+            if intento > 1:
+                await record_step("🔄 Re-verificando selección de productos antes de reintentar...")
+                await ensure_products_selected()
+                await page.wait_for_timeout(500)
+                
+            if tracker and intento > 1:
+                tracker.mark_retry(f"Intento {intento} de click en Pagar")
+            await record_step(f"Intento {intento}/4 de click en Pagar...")
             try:
-                # 1. Esperar que desaparezcan capas de carga comunes
+                # Esperar a que loading masks desaparezcan
                 loading_mask = page.locator(".el-loading-mask:visible").first
                 if await loading_mask.count() > 0:
-                    await loading_mask.wait_for(state="hidden", timeout=3000)
+                    await loading_mask.wait_for(state="hidden", timeout=2000)
 
-                # 2. Click a todos los posibles botones visibles de Pagar
+                # Buscar botones de checkout
                 checkout_elements = await page.locator(".cart-footer__operate, .go_buy, .go_submit").locator("visible=true").all()
-                if not checkout_elements:
-                    logger.warning("No se encontraron elementos de Pagar visibles en este intento.")
                 
                 for idx, btn in enumerate(checkout_elements):
-                    logger.info(f"🖱️ Disparando click al botón visible de Pagar #{idx}")
+                    if "cart" not in page.url:
+                        break  # Ya navegó, salir del loop de botones
                     try:
-                        # JS Click
-                        await btn.evaluate("element => element.click()")
-                        await page.wait_for_timeout(300)
+                        # Estrategia 1: JS click (más rápido)
+                        await btn.evaluate("el => el.click()")
+                        await page.wait_for_timeout(500)
                         
-                        # Mouse Coordinate Click
+                        # Check inmediato tras JS click
+                        if "cart" not in page.url:
+                            await record_step("Navegación detectada tras JS click ✓")
+                            break
+                        
+                        # Estrategia 2: Mouse click en coordenadas
                         box = await btn.bounding_box()
                         if box and box["width"] < 400 and box["height"] < 200:
                             await page.mouse.click(box["x"] + box["width"]/2, box["y"] + box["height"]/2)
-                            await page.wait_for_timeout(300)
+                            await page.wait_for_timeout(500)
                             
-                        # Playwright Force Click
-                        await btn.click(force=True, timeout=1000)
-                    except Exception as e:
-                        logger.warning(f"Fallo al clicar botón #{idx}: {str(e)[:50]}")
+                            if "cart" not in page.url:
+                                await record_step("Navegación detectada tras mouse click ✓")
+                                break
+                    except Exception:
+                        pass
                 
-                # 3. Esperar que cambie la URL o aparezca el botón del siguiente paso
-                try:
-                    # Esperamos hasta que la URL ya NO contenga '/cart'
-                    await page.wait_for_function("window.location.href.indexOf('cart') === -1", timeout=4000)
-                    logger.info("✅ Navegación fuera del carrito detectada tras clicar Pagar!")
+                # Verificación final de URL
+                if "cart" not in page.url:
                     pagar_success = True
+                    await record_step("Fuera del carrito ✓")
                     break
-                except PlaywrightTimeout:
-                    logger.warning("⚠️ El clic en Pagar no hizo transición de página, reintentando...")
-                    await page.wait_for_timeout(1000)
+                else:
+                    # Esperar un poco más por si la navegación es lenta
+                    await page.wait_for_timeout(1500)
+                    if "cart" not in page.url:
+                        pagar_success = True
+                        await record_step("Navegación tardía detectada ✓")
+                        break
                     
             except Exception as e:
-                logger.error(f"Error en el intento {intento} de clicar Pagar: {e}")
-                await page.wait_for_timeout(1000)
+                await record_step(f"Error intento {intento}: {str(e)[:50]}")
                 
         if not pagar_success:
-            logger.error("❌ CRÍTICO: Fallaron todos los intentos de salir del carrito clickeando Pagar.")
-            # Podemos intentar dejar que el flujo siga por si acaso la validación de URL falló pero sí avanzó.
+            await record_step("⚠ Todos los intentos de Pagar fallaron — forzando continuación")
         
-        # Esperamos explícitamente a que Vue estabilice la nueva pantalla de confirmación
-        await page.wait_for_timeout(3000)
+        await page.wait_for_timeout(1000)
+        if tracker:
+            tracker.mark_step_done("checkout")
 
-        # ── Paso 4: Enviar pedido y aceptar condiciones ──
-        await record_step("Fase: Confirmación final del pedido")
-        # 1. Click en el botón "Enviar pedido"
+        # ══════════════════════════════════════════════════════════
+        # PASO 5: CONFIRMACIÓN FINAL
+        # ══════════════════════════════════════════════════════════
+        if tracker:
+            tracker.advance_to("confirm", "Buscando 'Enviar pedido'...")
+
+        # Click en "Enviar pedido"
         try:
-            await record_step("Buscando botón 'Enviar pedido'")
+            await record_step("Buscando botón 'Enviar pedido'...")
             enviar_btn = page.locator("button:has-text('Enviar pedido'), span:has-text('Enviar pedido'), .submit-btn, .goBuy").last
             await enviar_btn.wait_for(state="attached", timeout=10000)
-            # DofiMall tiene muchas capas superpuestas en el pre-checkout. Siempre forzamos.
             try:
                 await enviar_btn.evaluate("element => element.click()")
-                logger.info("🖱️ DOM JS Click ejecutado en 'Enviar pedido'")
-            except:
+                await record_step("Click en 'Enviar pedido' ejecutado")
+            except Exception:
                 await enviar_btn.click(force=True)
-                logger.info("🖱️ Force Click ejecutado en 'Enviar pedido'")
-            # Dar tiempo a que el modal "Aviso" emerja con su animación
+                await record_step("Force-click en 'Enviar pedido' ejecutado")
             await page.wait_for_timeout(3000)
         except PlaywrightTimeout:
-            await record_step("Advertencia: No se detectó 'Enviar pedido'.")
+            await record_step("⚠ No se detectó 'Enviar pedido'")
 
-        # 2. Click en el modal de "Aviso" (Estoy de acuerdo)
+        # Click en "Estoy de acuerdo"
         try:
-            await record_step("Buscando botón 'Estoy de acuerdo' en el aviso legal")
-            # Busqueda infalible: Filtrando el typo del desarrollador de Vue ('colse' en vez de 'close'). 
+            await record_step("Buscando aviso legal 'Estoy de acuerdo'...")
             acuerdo_btn = page.locator("div.agreement-btn:not(.agreement-btn--colse)").last
             await acuerdo_btn.wait_for(state="visible", timeout=10000)
             
             await acuerdo_btn.evaluate("element => element.click()")
-            logger.info("🖱️ Click ejecutado en 'Estoy de acuerdo'")
+            await record_step("Aviso legal aceptado — esperando redirección bancaria...")
             
-            # CRÍTICO: Una vez dado clic, DofiMall envía el POST request de compra.
-            await record_step("Transacción enviada. Esperando redirección bancaria a /buy/Pay...")
-            
-            # Esperar activamente a que la URL cambie (éxito al 100%)
             try:
                 async with page.expect_navigation(timeout=15000):
                     pass
             except Exception:
                 await page.wait_for_timeout(5000)
-            
+                
         except PlaywrightTimeout:
-            # Si llegamos aquí y no hay botón de acuerdo ni redirección, el sistema ha fallado en el Pagar
             import os
             os.makedirs("logs", exist_ok=True)
             await page.screenshot(path="logs/checkout_final_fail.png", full_page=True)
@@ -539,45 +561,57 @@ async def add_to_cart_and_checkout(
             with open("logs/checkout_final_fail.html", "w", encoding="utf-8") as f:
                 f.write(content)
                 
-            result["message"] = "CRÍTICO: No apareció el aviso legal ni hubo redirección tras Enviar pedido."
-            logger.error(f"❌ {result['message']} (Screenshot y DOM guardados en logs/)")
+            msg = "CRÍTICO: No apareció el aviso legal ni hubo redirección tras Enviar pedido."
+            if tracker:
+                tracker.mark_step_error(msg)
+                tracker.finish(False, msg)
+            result["message"] = msg
             return result
+        
+        if tracker:
+            tracker.mark_step_done("confirm")
 
-        # ── Paso 5: Completado y reporte ──
-        await record_step("Fase: Operación final completada")
+        # ══════════════════════════════════════════════════════════
+        # PASO 6: RESULTADO FINAL
+        # ══════════════════════════════════════════════════════════
         checkout_url = page.url
         result["success"] = True
         result["checkout_url"] = checkout_url
-        
-        trace_str = "".join([f"✅ {step}\n" for step in steps_trace])
-        result["message"] = f"¡Reserva completada! Redirigido a pasarela de pago: {checkout_url}\n\nDetalle de Operaciones:\n{trace_str}"
+        result["message"] = f"¡Reserva completada! Redirigido a pasarela de pago: {checkout_url}"
 
         logger.info(f"🎉 ¡RESERVA EXITOSA! Checkout URL: {checkout_url}")
+        
+        if tracker:
+            tracker.finish(True, f"Reserva completada → {checkout_url}")
 
-        # Tomar screenshot como evidencia suavemente
         try:
             await page.screenshot(path="screenshots/checkout_success.png")
-        except:
+        except Exception:
             pass
 
         return result
 
     except PlaywrightTimeout as e:
-        trace_str = '\n'.join(steps_trace)
-        result["message"] = f"TIMEOUT en paso 👉 '{current_step}'\n\nPasos ejecutados:\n{trace_str}"
-        logger.error(f"⏱️ {result['message']}")
+        msg = f"TIMEOUT en paso actual: {str(e)[:100]}"
+        if tracker:
+            tracker.mark_step_error(msg)
+            tracker.finish(False, msg)
+        result["message"] = msg
         try:
             await page.screenshot(path="screenshots/checkout_timeout.png")
-        except:
+        except Exception:
             pass
         return result
 
     except Exception as e:
-        trace_str = '\n'.join(steps_trace)
-        result["message"] = f"CRASH en paso 👉 '{current_step}': {str(e)}\n\nPasos ejecutados:\n{trace_str}"
-        logger.error(f"💥 {result['message']}")
+        msg = f"CRASH: {str(e)[:150]}"
+        if tracker:
+            tracker.mark_step_error(msg)
+            tracker.finish(False, msg)
+        result["message"] = msg
         try:
             await page.screenshot(path="screenshots/checkout_error.png")
-        except:
+        except Exception:
             pass
         return result
+
