@@ -76,7 +76,8 @@ function ScanCountdown({ isActive }) {
 function ProductItem({ product, i, onDelete, onToggle, onCheckout, onOpenEdit }) {
   const [expandedTab, setExpandedTab] = useState(null); 
   const [targetQty, setTargetQty] = useState(product.target_quantity ?? 1);
-  const [minTrigger, setMinTrigger] = useState(product.min_stock_to_trigger || 1);
+  const [minLocal, setMinLocal] = useState(product.min_local_to_trigger ?? 1);
+  const [minTransit, setMinTransit] = useState(product.min_transit_to_trigger ?? 0);
   
   const [logOutput, setLogOutput] = useState('');
   const [isExecuting, setIsExecuting] = useState(product.status === 'purchasing');
@@ -159,7 +160,8 @@ function ProductItem({ product, i, onDelete, onToggle, onCheckout, onOpenEdit })
      try {
         await updateProduct(product.id, {
            target_quantity: targetQty === -1 || targetQty === '-1' ? -1 : parseInt(targetQty) || 1,
-           min_stock_to_trigger: parseInt(minTrigger)
+           min_local_to_trigger: parseInt(minLocal) || 0,
+           min_transit_to_trigger: parseInt(minTransit) || 0
         });
         toast.success("CONFIG_SAVED", { style: { background: '#1e293b', color: '#38bdf8', border: '1px solid #0c4a6e' }});
      } catch(e) {}
@@ -423,7 +425,7 @@ function ProductItem({ product, i, onDelete, onToggle, onCheckout, onOpenEdit })
                                <div className={`w-4 h-4 shadow-sm ${product.auto_buy ? 'bg-amber-500 shadow-[0_0_10px_rgba(255,176,0,0.8)]' : 'bg-surface-600'}`} />
                             </div>
                          </label>
-                         <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                         <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-5 gap-3">
                             <div>
                                <label className="text-[10px] font-mono text-surface-400 tracking-wider block mb-1 font-bold uppercase">Cantidad</label>
                                <div className="flex gap-2">
@@ -444,7 +446,7 @@ function ProductItem({ product, i, onDelete, onToggle, onCheckout, onOpenEdit })
                                            const val = e.target.checked ? -1 : 1;
                                            setTargetQty(val);
                                            try {
-                                              await updateProduct(product.id, { target_quantity: val, min_stock_to_trigger: parseInt(minTrigger) });
+                                              await updateProduct(product.id, { target_quantity: val, min_local_to_trigger: parseInt(minLocal) || 0, min_transit_to_trigger: parseInt(minTransit) || 0 });
                                               toast.success("CONFIG_SAVED", { style: { background: '#1e293b', color: '#38bdf8', border: '1px solid #0c4a6e' }});
                                            } catch(err) {}
                                         }}
@@ -454,10 +456,14 @@ function ProductItem({ product, i, onDelete, onToggle, onCheckout, onOpenEdit })
                                </div>
                             </div>
                             <div>
-                               <label className="text-[10px] font-mono text-surface-400 tracking-wider block mb-1 font-bold uppercase">Min Stock</label>
-                               <input type="number" min="1" max="999" value={minTrigger} onChange={e=>setMinTrigger(e.target.value)} onBlur={handleSaveConfig} className="bg-surface-900 border border-surface-700 text-amber-500 w-full p-2 focus:border-amber-500 focus:outline-none text-center font-mono text-sm shadow-inner" />
+                               <label className="text-[10px] font-mono text-surface-400 tracking-wider block mb-1 font-bold uppercase">Min Local</label>
+                               <input type="number" min="0" max="999" value={minLocal} onChange={e=>setMinLocal(e.target.value)} onBlur={handleSaveConfig} className="bg-surface-900 border border-surface-700 text-amber-500 w-full p-2 focus:border-amber-500 focus:outline-none text-center font-mono text-sm shadow-inner" title="Mínimo stock LOCAL por almacén para disparar (0 = ignorar local)" />
                             </div>
-                            <div className="col-span-2">
+                            <div>
+                               <label className="text-[10px] font-mono text-surface-400 tracking-wider block mb-1 font-bold uppercase">Min Tránsito</label>
+                               <input type="number" min="0" max="999" value={minTransit} onChange={e=>setMinTransit(e.target.value)} onBlur={handleSaveConfig} className="bg-surface-900 border border-surface-700 text-blue-400 w-full p-2 focus:border-blue-500 focus:outline-none text-center font-mono text-sm shadow-inner" title="Mínimo stock en TRÁNSITO por almacén para disparar (0 = ignorar tránsito)" />
+                            </div>
+                            <div>
                                <label className="text-[10px] font-mono text-surface-400 tracking-wider block mb-1 font-bold uppercase">Post-Compra</label>
                                <select value={product.post_purchase_action || 'pause'} onChange={async (e) => { await updateProduct(product.id, { post_purchase_action: e.target.value }); toast.success('CONFIG OK'); }} className="bg-surface-900 border border-surface-700 text-blue-400 w-full p-2 focus:border-blue-500 focus:outline-none font-mono text-xs shadow-inner appearance-none cursor-pointer">
                                   <option value="pause">PAUSAR TRAS ÉXITO</option>

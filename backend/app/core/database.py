@@ -32,6 +32,26 @@ async def init_db():
         except Exception:
             pass
 
+        # Migración: min_stock_to_trigger → min_local_to_trigger + min_transit_to_trigger
+        try:
+            await conn.execute(text("ALTER TABLE products ADD COLUMN min_local_to_trigger INTEGER DEFAULT 1"))
+        except Exception:
+            pass
+        try:
+            await conn.execute(text("ALTER TABLE products ADD COLUMN min_transit_to_trigger INTEGER DEFAULT 0"))
+        except Exception:
+            pass
+        # Copiar valor viejo de min_stock_to_trigger a min_local_to_trigger si existe
+        try:
+            await conn.execute(text("""
+                UPDATE products 
+                SET min_local_to_trigger = min_stock_to_trigger 
+                WHERE min_stock_to_trigger IS NOT NULL 
+                  AND min_local_to_trigger = 1
+            """))
+        except Exception:
+            pass
+
 
 async def get_db():
     async with async_session() as session:
