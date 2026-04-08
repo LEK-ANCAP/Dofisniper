@@ -301,3 +301,44 @@ def get_best_warehouse(stock_info: StockCheckResult) -> WarehouseInfo | None:
         return transits[0]
         
     return None
+
+
+def find_triggering_warehouse(
+    stock_result: StockCheckResult,
+    min_local: int,
+    min_transit: int
+) -> tuple[WarehouseInfo, str, int] | None:
+    """
+    Busca un almacén INDIVIDUAL que cumpla los mínimos configurados.
+    
+    Args:
+        stock_result: Resultado del check de stock con desglose por almacén.
+        min_local: Mínimo de stock LOCAL por almacén para disparar. 0 = ignorar local.
+        min_transit: Mínimo de stock en TRÁNSITO por almacén para disparar. 0 = ignorar tránsito.
+    
+    Returns:
+        Tupla (warehouse, 'local'|'transit', stock_disponible) del almacén que disparó,
+        o None si ninguno cumple los mínimos.
+    
+    Prioridad: local > tránsito. Dentro de cada tipo, Camagüey primero.
+    """
+    if not stock_result or not stock_result.warehouses:
+        return None
+    
+    candidates = []
+    for wh in stock_result.warehouses:
+        if min_local > 0 and wh.warehouse_stock >= min_local:
+            candidates.append((wh, 'local', wh.warehouse_stock))
+        if min_transit > 0 and wh.transit_stock >= min_transit:
+            candidates.append((wh, 'transit', wh.transit_stock))
+    
+    if not candidates:
+        return None
+    
+    # Priorizar: local > tránsito, luego Camagüey primero
+    candidates.sort(key=lambda c: (
+        0 if c[1] == 'local' else 1,
+        0 if 'camag' in c[0].name.lower() else 1
+    ))
+    return candidates[0]
+

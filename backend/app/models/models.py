@@ -61,7 +61,8 @@ class Product(Base):
 
     # Snipe Config
     target_quantity = Column(Integer, default=1)      # Cantidad que intentar comprar
-    min_stock_to_trigger = Column(Integer, default=1) # Stock mínimo para disparar el snipe
+    min_local_to_trigger = Column(Integer, default=1)   # Mínimo stock LOCAL por almacén para disparar
+    min_transit_to_trigger = Column(Integer, default=0)  # Mínimo stock TRÁNSITO por almacén para disparar (0 = ignorar)
     auto_buy = Column(Boolean, default=False)          # Compra automática independiente de monitorización
     post_purchase_action = Column(String(20), default="pause") # loop | pause
 
