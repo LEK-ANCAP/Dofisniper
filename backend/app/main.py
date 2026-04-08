@@ -167,7 +167,8 @@ async def persistent_checkout_loop(product_id: int):
                     await _log_action(db, product.id, product.name, "auto_purchase", LogLevel.SUCCESS, "Auto-compra confirmada.")
                     await send_telegram_notification(
                         subject="AUTO-COMPRA LOGRADA ⚡", product_name=product.name, product_url=product.url, 
-                        checkout_url=checkout_result.get("checkout_url"), is_purchase=True, quantity=actual_target_qty
+                        checkout_url=checkout_result.get("checkout_url"), is_purchase=True, quantity=actual_target_qty,
+                        warehouse=pre_routed_wh_name
                     )
                     if getattr(product, "post_purchase_action", "pause") == "loop":
                         logger.success(f"♻️ [HILO CHECKOUT {product_id}] Éxito. MODO LOOP FULL-AUTO - Cooldown de seguridad (30s)...")
