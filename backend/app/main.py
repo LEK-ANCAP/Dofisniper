@@ -14,7 +14,8 @@ from datetime import datetime, timezone
 if sys.platform == "win32":
     asyncio.set_event_loop_policy(asyncio.WindowsProactorEventLoopPolicy())
 
-from fastapi import FastAPI, Depends
+from fastapi import FastAPI, Depends, Request
+from fastapi.responses import JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from sqlalchemy import select
@@ -528,6 +529,16 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+@app.exception_handler(Exception)
+async def global_exception_handler(request: Request, exc: Exception):
+    import traceback
+    err_msg = "".join(traceback.format_exception(type(exc), exc, exc.__traceback__))
+    logger.error(f"Global Error: {err_msg}")
+    return JSONResponse(
+        status_code=500,
+        content={"detail": "Internal Server Error", "traceback": err_msg}
+    )
 
 # Public Routes
 app.include_router(auth_router, prefix="/api")
