@@ -515,14 +515,12 @@ async def add_to_cart_and_checkout(
         except PlaywrightTimeout:
             pass # Todo en orden, el popup no apareció
             
-        # 4. Esperar redirección bancaria
-        await record_step("Esperando redirección bancaria definitiva...")
+        # 4. Esperar transición a la página de pago
+        await record_step("Esperando redirección a pasarela de pago (/buy/pay)...")
         try:
-            async with page.expect_navigation(timeout=10000):
-                pass
+            await page.wait_for_url("**/buy/pay*", timeout=8000)
         except Exception:
-            # Tolerancia final por si el socket no detecta la navegación pero ya ocurrió
-            await page.wait_for_timeout(3000)
+            pass
             
         if tracker:
             tracker.mark_step_done("confirm")
