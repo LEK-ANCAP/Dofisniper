@@ -518,10 +518,11 @@ async def add_to_cart_and_checkout(
         # 4. Esperar transición a la página de pago
         await record_step("Esperando redirección a pasarela de pago (/buy/pay)...")
         try:
-            await page.wait_for_url("**/buy/pay*", timeout=8000)
+            import re
+            await page.wait_for_url(re.compile(r".*/buy/pay.*", re.IGNORECASE), timeout=8000)
             
             checkout_url = page.url
-            if "buy/pay" not in checkout_url:
+            if "buy/pay" not in checkout_url.lower():
                 raise Exception("URL incorrecta")
                 
             result["success"] = True
