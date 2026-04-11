@@ -519,31 +519,36 @@ async def add_to_cart_and_checkout(
         await record_step("Esperando redirección a pasarela de pago (/buy/pay)...")
         try:
             await page.wait_for_url("**/buy/pay*", timeout=8000)
-        except Exception:
-            pass
             
-        if tracker:
-            tracker.mark_step_done("confirm")
+            checkout_url = page.url
+            if "buy/pay" not in checkout_url:
+                raise Exception("URL incorrecta")
+                
+            result["success"] = True
+            result["checkout_url"] = checkout_url
+            result["message"] = f"¡Reserva completada! Redirigido a pasarela de pago: {checkout_url}"
 
-        # ══════════════════════════════════════════════════════════
-        # PASO 6: RESULTADO FINAL
-        # ══════════════════════════════════════════════════════════
-        checkout_url = page.url
-        result["success"] = True
-        result["checkout_url"] = checkout_url
-        result["message"] = f"¡Reserva completada! Redirigido a pasarela de pago: {checkout_url}"
+            logger.info(f"🎉 ¡RESERVA EXITOSA! Checkout URL: {checkout_url}")
+            
+            if tracker:
+                tracker.finish(True, f"Reserva completada → {checkout_url}")
 
-        logger.info(f"🎉 ¡RESERVA EXITOSA! Checkout URL: {checkout_url}")
-        
-        if tracker:
-            tracker.finish(True, f"Reserva completada → {checkout_url}")
+            try:
+                await page.screenshot(path="screenshots/checkout_success.png")
+            except Exception:
+                pass
 
-        try:
-            await page.screenshot(path="screenshots/checkout_success.png")
+            return result
+
         except Exception:
-            pass
-
-        return result
+            msg = f"⚠ Falló la URL final. Se quedó atascado en: {page.url}"
+            await record_step(msg)
+            if tracker:
+                tracker.mark_step_error(msg)
+                tracker.finish(False, msg)
+            result["message"] = msg
+            result["success"] = False
+            return result
 
     except PlaywrightTimeout as e:
         msg = f"TIMEOUT en paso actual: {str(e)[:100]}"
